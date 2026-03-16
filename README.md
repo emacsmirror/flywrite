@@ -29,21 +29,21 @@ Add to your Emacs config:
 ```elisp
 (use-package flywrite-mode
   :load-path "/path/to/flywrite"
+
+  ;; Optional: enable automatically for writing modes
+  :hook ((text-mode latex-mode LaTeX-mode markdown-mode org-mode) . flywrite-mode)
+
+  ;; Set API key (choose one method):
   :config
-  (setq flywrite-api-key "sk-ant-..."))  ; or use ANTHROPIC_API_KEY env var
+  ;; 1. Set directly:
+  ;; (setq flywrite-api-key "sk-ant-...")
+  ;; 2. Read from a file:
+  ;; (setq flywrite-api-key-file "~/.config/anthropic/api-key")
+  ;; 3. Use ANTHROPIC_API_KEY environment variable (no config needed)
+  )
 ```
 
 ## Configuration
-
-Set your API key (choose one):
-
-```elisp
-;; Option 1: set directly
-(setq flywrite-api-key "sk-ant-...")
-
-;; Option 2: use environment variable (no config needed)
-;; export ANTHROPIC_API_KEY=sk-ant-...
-```
 
 Optional settings:
 

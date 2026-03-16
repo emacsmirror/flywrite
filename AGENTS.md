@@ -28,7 +28,31 @@ emacs -Q --batch -f batch-byte-compile flywrite-mode.el && rm -f flywrite-mode.e
 
 ## Architecture
 
-The pipeline: buffer edits → `after-change-functions` → dirty sentence registry (deduplicated by MD5 hash) → idle timer (1.5s) → request queue (max 3 concurrent) → async `url-retrieve` to LLM API → response handler (stale-check via hash comparison) → flymake diagnostics (`:note` severity).
+```
+Buffer edits
+    │
+    ▼
+after-change-functions
+    │  marks sentence (or paragraph) dirty
+    ▼
+Dirty sentence registry  ◄──── sentence content deduplication (hash check)
+    │
+    │  idle timer fires (1.5s)
+    ▼
+Request queue
+    │  concurrent call cap (max 3 in-flight)
+    ▼
+LLM API  (url-retrieve, async)
+    │
+    ▼
+Response handler
+    │  stale check (hash comparison)
+    ▼
+Flymake report  →  diagnostics (:note severity)
+    │
+    ▼
+flymake-popon / echo area  →  inline popups near flagged text
+```
 
 Key design decisions:
 - **Sentence-level granularity** by default (paragraph via `flywrite-granularity`)

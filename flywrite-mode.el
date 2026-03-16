@@ -123,8 +123,13 @@ Longer units are passed through without truncation or splitting."
 
 ;;;; ---- Constants ----
 
-(defconst flywrite--api-url "https://api.anthropic.com/v1/messages"
-  "Anthropic Messages API endpoint.")
+(defcustom flywrite-api-url nil
+  "Anthropic Messages API endpoint.
+If nil, `flywrite-mode' will display an error asking you to
+configure it.  See the README for details."
+  :type '(choice (const :tag "Not set" nil)
+                 (string :tag "URL"))
+  :group 'flywrite)
 
 (defconst flywrite--system-prompt
   "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
@@ -272,6 +277,8 @@ HASH is the content hash at time of dispatch for stale checking."
   (if (with-current-buffer buf
         (gethash hash flywrite--checked-sentences))
       (flywrite--log "Skipping already-checked hash=%s" (substring hash 0 8))
+    (unless flywrite-api-url
+      (error "flywrite-api-url is not set.  See the README for configuration"))
     (let* ((text (with-current-buffer buf
                    (buffer-substring-no-properties beg end)))
          (api-key (flywrite--get-api-key))
@@ -300,7 +307,7 @@ HASH is the content hash at time of dispatch for stale checking."
       ;; Mark as checked now to prevent duplicate in-flight requests
       (puthash hash t flywrite--checked-sentences))
     (url-retrieve
-     flywrite--api-url
+     flywrite-api-url
      (lambda (status)
        (flywrite--handle-response status buf beg end hash start-time))
      nil t t))))

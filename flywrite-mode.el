@@ -344,9 +344,13 @@ request.  START-TIME is used for latency logging."
                             (when (and new-hash (not (gethash new-hash flywrite--checked-sentences)))
                               (push (list beg end new-hash) flywrite--dirty-registry))))
 
-                      ;; Parse suggestions
+                      ;; Parse suggestions (strip markdown code fences if present)
                       (condition-case parse-err
-                          (let* ((parsed (json-read-from-string text))
+                          (let* ((clean-text (replace-regexp-in-string
+                                              "\\`[ \t\n]*```\\(?:json\\)?[ \t]*\n?" ""
+                                              (replace-regexp-in-string
+                                               "\n?```[ \t\n]*\\'" "" text)))
+                                 (parsed (json-read-from-string clean-text))
                                  (suggestions (alist-get 'suggestions parsed)))
                             (flywrite--log "Suggestions: %d for [%d-%d]"
                                            (length suggestions) beg end)
@@ -532,6 +536,11 @@ flymake diagnostics."
 
 (defun flywrite--enable ()
   "Set up flywrite-mode in the current buffer."
+  ;; Guard against duplicate enable (e.g., multiple mode hooks firing)
+  (when flywrite--idle-timer
+    (cancel-timer flywrite--idle-timer)
+    (setq flywrite--idle-timer nil))
+
   ;; Initialize buffer-local state
   (setq flywrite--dirty-registry nil)
   (setq flywrite--checked-sentences (make-hash-table :test 'equal))

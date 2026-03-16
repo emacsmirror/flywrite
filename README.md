@@ -118,15 +118,17 @@ M-x flywrite-mode
 
 As you type, flywrite will automatically check sentences after a short idle delay and underline issues with suggestions.
 
-### Key bindings
+### Commands
 
-| Binding     | Command                    | Description                      |
-|-------------|----------------------------|----------------------------------|
-| `C-c C-g b` | `flywrite-check-buffer`    | Check all sentences in buffer    |
-| `C-c C-g p` | `flywrite-check-paragraph` | Check sentences in paragraph     |
-| `C-c C-g c` | `flywrite-clear`           | Clear diagnostics and caches     |
-| `M-n`       | `flymake-goto-next-error`  | Next diagnostic (flymake built-in) |
-| `M-p`       | `flymake-goto-prev-error`  | Previous diagnostic (flymake built-in) |
+| Command                    | Description                      |
+|----------------------------|----------------------------------|
+| `flywrite-check-buffer`    | Check all sentences in buffer    |
+| `flywrite-check-at-point`  | Check sentence at point          |
+| `flywrite-clear`           | Clear diagnostics and caches     |
+| `flymake-goto-next-error`  | Next diagnostic (flymake built-in) |
+| `flymake-goto-prev-error`  | Previous diagnostic (flymake built-in) |
+
+Run any command with `M-x`. No default keybindings are provided — bind them yourself if desired.
 
 ## Troubleshooting
 

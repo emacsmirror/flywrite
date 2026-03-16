@@ -42,5 +42,5 @@ Key design decisions:
 - All async HTTP via `url-retrieve` (no external dependencies)
 - All state is buffer-local (dirty registry, checked-sentences hash table, in-flight counter, pending queue, report-fn)
 - Package prefix: `flywrite-` (public), `flywrite--` (internal)
-- Key bindings use the `C-c C-g` prefix
+- No default keybindings; commands available via `M-x`
 - Diagnostics are tagged with `[flywrite]` suffix in messages

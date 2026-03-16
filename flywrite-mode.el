@@ -624,18 +624,6 @@ Respects `flywrite-granularity'."
     (flymake-start))
   (message "flywrite: cleared all diagnostics and caches"))
 
-;;;; ---- Keymap ----
-
-(defvar flywrite-mode-map
-  (let ((map (make-sparse-keymap))
-        (prefix (make-sparse-keymap)))
-    (define-key prefix "b" #'flywrite-check-buffer)
-    (define-key prefix "." #'flywrite-check-at-point)
-    (define-key prefix "c" #'flywrite-clear)
-    (define-key map (kbd "C-c C-g") prefix)
-    map)
-  "Keymap for `flywrite-mode'.")
-
 ;;;; ---- Minor mode definition ----
 
 ;;;###autoload
@@ -644,7 +632,6 @@ Respects `flywrite-granularity'."
 Provides sentence-level grammar, clarity, and style feedback as
 flymake diagnostics."
   :lighter " FlyW"
-  :keymap flywrite-mode-map
   :group 'flywrite
   (cond
    ((not flywrite-mode)

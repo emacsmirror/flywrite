@@ -1,65 +1,72 @@
 # flywrite-mode
 
-An Emacs minor mode that provides inline writing suggestions powered by the Anthropic LLM API. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area.
+An Emacs minor mode that provides inline writing suggestions powered by an LLM. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area.
 
-## Requirements
+## Privacy warning
 
+Flywrite sends the text you are editing to the Anthropic API for analysis. Do not use flywrite-mode when editing files that contain sensitive or confidential information.
+
+## Installation
+
+Requirements:
 - Emacs 27.1+
 - Anthropic API key
 
 No external Emacs packages are required — flywrite uses only built-in libraries (`url`, `json`, `flymake`, `md5`).
 
-## Installation
-
-### Development install
-
+Clone
 ```bash
 git clone https://github.com/awdeorio/flywrite.git
 ```
 
-Add to your Emacs config:
-
-```elisp
-(add-to-list 'load-path "/path/to/flywrite")
-(require 'flywrite-mode)
-```
-
-### use-package (local path)
-
+Configure with use-package
 ```elisp
 (use-package flywrite-mode
   :load-path "/path/to/flywrite"
 
   ;; Optional: enable automatically for writing modes
-  :hook ((text-mode latex-mode LaTeX-mode markdown-mode org-mode) . turn-on-flywrite-mode)
+  :hook (text-mode . flywrite-mode)
 
   ;; Set API key (choose one method):
   :config
   ;; 1. Set directly:
   ;; (setq flywrite-api-key "sk-ant-...")
   ;; 2. Read from a file:
-  ;; (setq flywrite-api-key-file "~/.config/anthropic/api-key")
+  ;; (setq flywrite-api-key-file "~/.anthropic_api_key")
   ;; 3. Use ANTHROPIC_API_KEY environment variable (no config needed)
   )
 ```
 
-For Claude:
+Anthropic
 1. Get an API key at https://console.anthropic.com/settings/keys
-2. Store it in ~/.anthropic_api_key or set the environment variable:
-   export ANTHROPIC_API_KEY=sk-ant-...
-3. Add credits https://platform.claude.com/settings/billing
+2. Add credits https://platform.claude.com/settings/billing
 
+OpenAI
+1. Get an API key at https://console.anthropic.com/settings/keys
+2. Add credits https://platform.claude.com/settings/billing
+
+Google Gemini
+1. Get an API key at https://aistudio.google.com/apikey
+2. Add credits https://aistudio.google.com/plan_billing
+
+For the best experience, install [flymake-popon](https://github.com/akicho8/flymake-popon) to see suggestion explanations as inline popups near the flagged text. Without it, suggestions are shown in the echo area when point is on a diagnostic.
+
+```elisp
+(use-package flymake-popon
+  :ensure t
+  :hook (flymake-mode . flymake-popon-mode))
+```
 
 ## Configuration
 
 Optional settings:
 
 ```elisp
-(setq flywrite-model "claude-sonnet-4-20250514")  ; default model
+(setq flywrite-model "claude-sonnet-4-20250514")   ; default model
 (setq flywrite-idle-delay 1.5)                     ; seconds before checking
 (setq flywrite-max-concurrent 3)                   ; max parallel API calls
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
-(setq flywrite-debug t)                            ; enable logging to *flywrite-log*
+(setq flywrite-debug t)                            ; log to *flywrite-log*
 ```
 
 ## Usage
@@ -81,10 +88,6 @@ As you type, flywrite will automatically check sentences after a short idle dela
 | `C-c C-g c` | `flywrite-clear`           | Clear diagnostics and caches     |
 | `M-n`       | `flymake-goto-next-error`  | Next diagnostic (flymake built-in) |
 | `M-p`       | `flymake-goto-prev-error`  | Previous diagnostic (flymake built-in) |
-
-### Recommended: flymake-popon
-
-For the best experience, install [flymake-popon](https://github.com/akicho8/flymake-popon) to see suggestion explanations as inline popups near the flagged text. Without it, suggestions are shown in the echo area when point is on a diagnostic.
 
 ## Debugging
 

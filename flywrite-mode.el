@@ -222,14 +222,6 @@ Respects `flywrite-granularity'."
 
 ;;;; ---- Mode-aware suppression ----
 
-(defun flywrite--markup-only-p (beg end)
-  "Return non-nil if text between BEG and END is purely markup with no prose.
-Matches LaTeX commands like \\=\\cmd, \\=\\cmd{arg}, \\=\\begin{env}, etc."
-  (let ((text (string-trim (buffer-substring-no-properties beg end))))
-    (string-match-p
-     "\\`\\\\[a-zA-Z@]+\\(?:\\[[^]]*\\]\\)*\\(?:{[^}]*}\\)*\\s-*\\'"
-     text)))
-
 (defun flywrite--should-skip-p (pos)
   "Return non-nil if text at POS should be skipped.
 Checks font-lock faces and major mode."
@@ -533,7 +525,6 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
               (when (and (<= end (point-max))
                          (>= beg (point-min))
                          (not (flywrite--should-skip-p beg))
-                         (not (flywrite--markup-only-p beg end))
                          (not (gethash hash flywrite--checked-sentences))
                          (not (gethash hash seen)))
                 (puthash hash t seen)
@@ -591,8 +582,7 @@ Returns a list of (unit-beg unit-end hash) triples."
             (let ((hash (flywrite--content-hash ubeg uend)))
               (unless (or (gethash hash flywrite--checked-sentences)
                           (flywrite--should-skip-p ubeg)
-                          (flywrite--markup-only-p ubeg uend))
-                (push (list ubeg uend hash) units))))
+)                (push (list ubeg uend hash) units))))
           ;; Move past current unit and inter-sentence whitespace
           (goto-char (max (1+ (point)) uend))
           (skip-chars-forward " \t\n"))))
@@ -666,8 +656,7 @@ Respects `flywrite-granularity'."
          (ubeg (car bounds))
          (uend (cdr bounds))
          (hash (flywrite--content-hash ubeg uend)))
-    (when (or (flywrite--should-skip-p ubeg)
-              (flywrite--markup-only-p ubeg uend))
+    (when (flywrite--should-skip-p ubeg)
       (user-error "Point is in a skipped region"))
     ;; Remove from checked so it gets re-checked even if seen before
     (remhash hash flywrite--checked-sentences)

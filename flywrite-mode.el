@@ -194,8 +194,10 @@ Respects `flywrite-granularity'."
           (setq end (point))
           (when (< end beg) (setq end beg))
           (cons beg end))
-      ;; sentence granularity
-      (let (beg end)
+      ;; sentence granularity — treat single space as sentence boundary
+      ;; regardless of the user's `sentence-end-double-space' setting
+      (let ((sentence-end-double-space nil)
+            beg end)
         (backward-sentence)
         (skip-chars-forward " \t\n")
         (setq beg (point))
@@ -537,6 +539,7 @@ Reports any existing diagnostics immediately so flymake can display them."
   "Collect all sentence/paragraph units in region BEG to END.
 Returns a list of (unit-beg unit-end hash) triples."
   (let ((units nil)
+        (seen (make-hash-table :test 'eql))
         (pos beg))
     (save-excursion
       (goto-char pos)
@@ -544,13 +547,16 @@ Returns a list of (unit-beg unit-end hash) triples."
         (let* ((bounds (flywrite--unit-bounds-at-pos (point)))
                (ubeg (car bounds))
                (uend (cdr bounds)))
-          (when (and (> uend ubeg) (<= uend end))
+          (when (and (> uend ubeg) (<= uend end)
+                     (not (gethash ubeg seen)))
+            (puthash ubeg t seen)
             (let ((hash (flywrite--content-hash ubeg uend)))
               (unless (or (gethash hash flywrite--checked-sentences)
                           (flywrite--should-skip-p ubeg))
                 (push (list ubeg uend hash) units))))
-          ;; Move past current unit
-          (goto-char (max (1+ (point)) uend)))))
+          ;; Move past current unit and inter-sentence whitespace
+          (goto-char (max (1+ (point)) uend))
+          (skip-chars-forward " \t\n"))))
     (nreverse units)))
 
 (defun flywrite-check-buffer ()

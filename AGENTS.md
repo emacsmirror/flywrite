@@ -19,7 +19,7 @@ This is a pure Emacs Lisp package with no build system, no external dependencies
 
 **Byte-compile check** (catches warnings and errors without running Emacs interactively):
 ```bash
-emacs -Q --batch -f batch-byte-compile flywrite-mode.el
+emacs -Q --batch -f batch-byte-compile flywrite-mode.el && rm -f flywrite-mode.elc
 ```
 
 **Requires:** Emacs 27.1+, an LLM API key (via `flywrite-api-key-file` (recommended), `flywrite-api-key`, or `FLYWRITE_API_KEY` env var).

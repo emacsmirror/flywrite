@@ -48,23 +48,26 @@ Set `flywrite-api-url` to your provider's endpoint. Flywrite natively supports t
 
 **Anthropic**
 1. `(setq flywrite-api-url "https://api.anthropic.com/v1/messages")`
-2. Get an API key at https://console.anthropic.com/settings/keys
-3. Add credits at https://platform.claude.com/settings/billing
+2. `(setq flywrite-model "claude-sonnet-4-20250514")` — [model list](https://docs.anthropic.com/en/docs/about-claude/models)
+3. Get an API key at https://console.anthropic.com/settings/keys
+4. Add credits at https://platform.claude.com/settings/billing
 
 **OpenAI**
 1. `(setq flywrite-api-url "https://api.openai.com/v1/chat/completions")`
-2. Get an API key at https://platform.openai.com/api-keys
-3. Add credits at https://platform.openai.com/settings/organization/billing/overview
+2. `(setq flywrite-model "gpt-4o")` — [model list](https://platform.openai.com/docs/models)
+3. Get an API key at https://platform.openai.com/api-keys
+4. Add credits at https://platform.openai.com/settings/organization/billing/overview
 
 **Google Gemini** (OpenAI-compatible endpoint)
 1. `(setq flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")`
-2. Get an API key at https://aistudio.google.com/apikey
-3. Add credits at https://aistudio.google.com/plan_billing
+2. `(setq flywrite-model "gemini-2.5-flash")` — [model list](https://ai.google.dev/gemini-api/docs/models)
+3. Get an API key at https://aistudio.google.com/apikey
+4. Add credits at https://aistudio.google.com/plan_billing
 
 **Ollama** (local, no API key needed)
 1. Install Ollama from https://ollama.com and pull a model (e.g., `ollama pull llama3.2`)
 2. `(setq flywrite-api-url "http://localhost:11434/v1/chat/completions")`
-3. `(setq flywrite-model "llama3.2:3b")` — use any model you have pulled (check names with `ollama list`)
+3. `(setq flywrite-model "llama3.2:3b")` — [model list](https://ollama.com/library), check local names with `ollama list`
 
 Note: Smaller local models may struggle to consistently return valid JSON in the expected format, leading to "LLM returned invalid JSON" messages. Larger models (7B+) tend to be more reliable. Enable `flywrite-debug` and check `*flywrite-log*` to see raw responses.
 
@@ -76,16 +79,17 @@ Choose one method:
 2. Set directly: `(setq flywrite-api-key "sk-ant-...")`
 3. Use `FLYWRITE_API_KEY` environment variable (no config needed)
 
-### Optional settings
+Omit the API key if it's not needed, e.g., for Ollama.
 
-The default model is `claude-sonnet-4-20250514`. Override it or any other setting below as needed.
+### Optional settings
+Settings with defaults.
 
 ```elisp
-(setq flywrite-model "claude-sonnet-4-20250514")   ; default
+(setq flywrite-model "claude-sonnet-4-20250514")   ; model
 (setq flywrite-idle-delay 1.5)                     ; seconds before checking
 (setq flywrite-max-concurrent 3)                   ; max parallel API calls
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
-(setq flywrite-eager t)                            ; earlyer check paragraph around point (default t)
+(setq flywrite-eager t)                            ; eagerly check around point
 (setq flywrite-debug t)                            ; log to *flywrite-log*
 (setq flywrite-api-headers '(("Custom-Header" . "value")))  ; extra HTTP headers
 ```

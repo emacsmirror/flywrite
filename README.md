@@ -168,7 +168,7 @@ Run the regression tests:
 
 ### Manual end-to-end tests
 
-The `examples/` directory contains files for manual testing in Emacs. Open a file, run `M-x flywrite-mode`, and verify diagnostics appear as expected.
+The `samples/` directory contains files for manual testing in Emacs. Open a file, run `M-x flywrite-mode`, and verify diagnostics appear as expected.
 
 | File | Description |
 |------|-------------|

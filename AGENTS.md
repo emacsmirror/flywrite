@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 flywrite-mode is an Emacs minor mode that provides inline writing suggestions powered by an LLM API. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area. The UX goal is unobtrusive, always-on feedback (like Flyspell but for style/clarity, built on flymake).
 
-The entire package lives in a single file: `flywrite-mode.el`. The design spec is in `spec.md`. Sample files in `samples/` are used for manual end-to-end testing in Emacs.
+The entire package lives in a single file: `flywrite-mode.el`. Tests are in `test-flywrite.el`. Sample files in `samples/` are used for manual end-to-end testing in Emacs.
 
 ## Development
 
@@ -25,6 +25,11 @@ This is a pure Emacs Lisp package with no build system and no external dependenc
 **Byte-compile check** (catches warnings and errors without running Emacs interactively):
 ```bash
 emacs -Q --batch -f batch-byte-compile flywrite-mode.el && rm -f flywrite-mode.elc
+```
+
+**Run a single ERT test by name:**
+```bash
+emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
 ```
 
 **Requires:** Emacs 27.1+, an LLM API key (via `flywrite-api-key-file` (recommended), `flywrite-api-key`, or `FLYWRITE_API_KEY` env var). API key is optional for local providers like Ollama.

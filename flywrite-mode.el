@@ -104,6 +104,13 @@ Example for Anthropic:
   :type '(alist :key-type string :value-type string)
   :group 'flywrite)
 
+(defcustom flywrite-eager t
+  "When non-nil, also check the paragraph at point after each idle delay.
+This allows reviewing existing text by moving the cursor through it,
+without needing to edit."
+  :type 'boolean
+  :group 'flywrite)
+
 (defcustom flywrite-debug nil
   "When non-nil, log API calls, responses, and events to `*flywrite-log*'."
   :type 'boolean
@@ -490,10 +497,25 @@ request.  START-TIME is used for latency logging."
 Snapshots and clears the dirty registry, dispatches or queues requests."
   (when (buffer-live-p buf)
     (with-current-buffer buf
-      (when (and flywrite-mode flywrite--dirty-registry)
-        (let ((snapshot flywrite--dirty-registry)
-              (seen (make-hash-table :test 'equal)))
-          (setq flywrite--dirty-registry nil)
+      (when flywrite-mode
+        (when flywrite-eager
+          (condition-case nil
+              (save-excursion
+                (let (pbeg pend)
+                  (backward-paragraph)
+                  (skip-chars-forward " \t\n")
+                  (setq pbeg (point))
+                  (forward-paragraph)
+                  (skip-chars-backward " \t\n")
+                  (setq pend (point))
+                  (when (> pend pbeg)
+                    (dolist (entry (flywrite--collect-units-in-region pbeg pend))
+                      (push entry flywrite--dirty-registry)))))
+            (error nil)))
+        (when flywrite--dirty-registry
+          (let ((snapshot flywrite--dirty-registry)
+                (seen (make-hash-table :test 'equal)))
+            (setq flywrite--dirty-registry nil)
           (dolist (entry snapshot)
             (let ((beg (nth 0 entry))
                   (end (nth 1 entry))
@@ -511,7 +533,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
                     (flywrite--log "Queued: [%d-%d] (at cap %d)" beg end flywrite--in-flight)
                     (setq flywrite--pending-queue
                           (append flywrite--pending-queue
-                                  (list (list buf beg end hash))))))))))))))
+                                  (list (list buf beg end hash)))))))))))))))
 
 ;;;; ---- Pending queue drain ----
 

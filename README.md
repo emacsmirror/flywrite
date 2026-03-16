@@ -78,6 +78,7 @@ The default model is `claude-sonnet-4-20250514`. Override it or any other settin
 (setq flywrite-idle-delay 1.5)                     ; seconds before checking
 (setq flywrite-max-concurrent 3)                   ; max parallel API calls
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
+(setq flywrite-eager t)                            ; earlyer check paragraph around point (default t)
 (setq flywrite-debug t)                            ; log to *flywrite-log*
 (setq flywrite-api-headers '(("Custom-Header" . "value")))  ; extra HTTP headers
 ```
@@ -116,7 +117,7 @@ Enable the mode in any buffer:
 M-x flywrite-mode
 ```
 
-As you type, flywrite will automatically check sentences after a short idle delay and underline issues with suggestions.
+As you move or type, flywrite will automatically check sentences after a short idle delay and underline issues with suggestions.
 
 ### Commands
 

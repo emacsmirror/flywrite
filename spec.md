@@ -239,7 +239,7 @@ At 30% cache miss rate (new sessions, cache expiry), effective input cost drops 
 
 | Variable | Default | Description |
 |---|---|---|
-| `flywrite-api-key` | `nil` | API key (falls back to `ANTHROPIC_API_KEY` env var) |
+| `flywrite-api-key` | `nil` | API key (falls back to `FLYWRITE_API_KEY` env var) |
 | `flywrite-model` | `"claude-sonnet-4-20250514"` | Model to use |
 | `flywrite-idle-delay` | `1.5` | Seconds of idle before checking dirty sentences |
 | `flywrite-max-concurrent` | `3` | Max simultaneous in-flight API calls |

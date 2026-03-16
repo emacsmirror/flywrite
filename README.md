@@ -30,28 +30,37 @@ Configure with use-package
   ;; Optional: enable automatically for writing modes
   ;; :hook (text-mode . flywrite-mode)
 
-  ;; Set API key (choose one method):
   :config
+  ;; API endpoint (required):
+  (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
+
+  ;; API key (choose one method):
   ;; 1. Set directly:
   ;; (setq flywrite-api-key "sk-ant-...")
   ;; 2. Read from a file:
   ;; (setq flywrite-api-key-file "~/.anthropic_api_key")
-  ;; 3. Use ANTHROPIC_API_KEY environment variable (no config needed)
+  ;; 3. Use FLYWRITE_API_KEY environment variable (no config needed)
   )
 ```
 
-### API keys
-Anthropic
-1. Get an API key at https://console.anthropic.com/settings/keys
-2. Add credits https://platform.claude.com/settings/billing
+### API providers
 
-OpenAI
-1. Get an API key at https://console.anthropic.com/settings/keys
-2. Add credits https://platform.claude.com/settings/billing
+Set `flywrite-api-url` to point to a Messages API-compatible endpoint, then configure an API key (`flywrite-api-key` or `flywrite-api-key-file` or `FLYWRITE_API_KEY` environment variable).
 
-Google Gemini
-1. Get an API key at https://aistudio.google.com/apikey
-2. Add credits https://aistudio.google.com/plan_billing
+**Anthropic**
+1. `(setq flywrite-api-url "https://api.anthropic.com/v1/messages")`
+2. Get an API key at https://console.anthropic.com/settings/keys
+3. Add credits at https://platform.claude.com/settings/billing
+
+**OpenAI**
+1. `(setq flywrite-api-url "https://api.openai.com/v1/messages")`
+2. Get an API key at https://console.anthropic.com/settings/keys
+3. Add credits at https://platform.claude.com/settings/billing
+
+**Google Gemini**
+1. `(setq flywrite-api-url "https://generativelanguage.googleapis.com/v1/messages")`
+2. Get an API key at https://aistudio.google.com/apikey
+3. Add credits at https://aistudio.google.com/plan_billing
 
 ## Popup explanations
 For the best experience, install [flymake-popon](https://github.com/akicho8/flymake-popon) to see suggestion explanations as inline popups near the flagged text. Without it, suggestions are shown in the echo area when point is on a diagnostic.

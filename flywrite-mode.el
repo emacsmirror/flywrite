@@ -35,7 +35,7 @@
 
 (defcustom flywrite-api-key nil
   "Anthropic API key.
-Falls back to `flywrite-api-key-file', then the ANTHROPIC_API_KEY
+Falls back to `flywrite-api-key-file', then the FLYWRITE_API_KEY
 environment variable."
   :type '(choice (const :tag "Use file or env var" nil)
                  (string :tag "API key"))
@@ -45,7 +45,7 @@ environment variable."
   "Path to a file containing the Anthropic API key.
 The file should contain the key on its first line.  Leading and
 trailing whitespace is stripped.  Checked when `flywrite-api-key'
-is nil, before falling back to the ANTHROPIC_API_KEY env var."
+is nil, before falling back to the FLYWRITE_API_KEY env var."
   :type '(choice (const :tag "None" nil)
                  (file :tag "Key file path"))
   :group 'flywrite)
@@ -270,11 +270,11 @@ BEG and END are the changed region boundaries."
 (defun flywrite--get-api-key ()
   "Return the API key.
 Checks `flywrite-api-key', then `flywrite-api-key-file', then
-the ANTHROPIC_API_KEY environment variable."
+the FLYWRITE_API_KEY environment variable."
   (or flywrite-api-key
       (flywrite--read-api-key-file)
-      (getenv "ANTHROPIC_API_KEY")
-      (error "No API key: set `flywrite-api-key', `flywrite-api-key-file', or ANTHROPIC_API_KEY env var")))
+      (getenv "FLYWRITE_API_KEY")
+      (error "No API key: set `flywrite-api-key', `flywrite-api-key-file', or FLYWRITE_API_KEY env var")))
 
 (defun flywrite--send-request (buf beg end hash)
   "Send an API request for the text in BUF between BEG and END.
@@ -284,6 +284,7 @@ HASH is the content hash at time of dispatch for stale checking."
         (gethash hash flywrite--checked-sentences))
       (flywrite--log "Skipping already-checked hash=%s" (substring hash 0 8))
     (unless flywrite-api-url
+      (flywrite--log "ERROR: flywrite-api-url is not set")
       (error "flywrite-api-url is not set.  See the README for configuration"))
     (let* ((text (with-current-buffer buf
                    (buffer-substring-no-properties beg end)))
@@ -418,7 +419,7 @@ request.  START-TIME is used for latency logging."
                         (error
                          (flywrite--log "LLM returned unparseable response: %s\nRaw text: %s"
                                         (error-message-string parse-err) text)
-                         (message "flywrite: LLM returned invalid JSON (not a bug in flywrite). Enable `flywrite-debug' and check *flywrite-log* for details.")))))))))
+                         (message "flywrite: LLM returned invalid JSON (not a bug in flywrite). Enable `flywrite-debug' and check *flywrite-log* for details."))))))))
           (error
            (flywrite--log "Response handler error: %s" (error-message-string err))
            (message "flywrite: API error: %s" (error-message-string err))
@@ -530,17 +531,25 @@ Prompts for confirmation when the count exceeds
       (push entry flywrite--dirty-registry))
     (message "flywrite: queued %d sentences for checking" (length units))))
 
-(defun flywrite-check-paragraph ()
-  "Queue all sentences in the current paragraph for checking."
+(defun flywrite-check-at-point ()
+  "Queue the sentence or paragraph at point for checking.
+Respects `flywrite-granularity'."
   (interactive)
   (unless flywrite-mode
     (user-error "flywrite-mode is not enabled"))
-  (let* ((para-beg (save-excursion (backward-paragraph) (point)))
-         (para-end (save-excursion (forward-paragraph) (point)))
-         (units (flywrite--collect-units-in-region para-beg para-end)))
-    (dolist (entry units)
-      (push entry flywrite--dirty-registry))
-    (message "flywrite: queued %d sentences for checking" (length units))))
+  (let* ((bounds (flywrite--unit-bounds-at-pos (point)))
+         (ubeg (car bounds))
+         (uend (cdr bounds))
+         (hash (flywrite--content-hash ubeg uend)))
+    (when (flywrite--should-skip-p ubeg)
+      (user-error "Point is in a skipped region"))
+    ;; Remove from checked so it gets re-checked even if seen before
+    (remhash hash flywrite--checked-sentences)
+    (push (list ubeg uend hash) flywrite--dirty-registry)
+    (message "flywrite: queued %s at point for checking"
+             (if (eq flywrite-granularity 'paragraph) "paragraph" "sentence"))
+    ;; Dispatch immediately rather than waiting for idle timer
+    (flywrite--idle-timer-fn (current-buffer))))
 
 (defun flywrite-clear ()
   "Clear all flywrite diagnostics and reset caches."
@@ -559,7 +568,7 @@ Prompts for confirmation when the count exceeds
   (let ((map (make-sparse-keymap))
         (prefix (make-sparse-keymap)))
     (define-key prefix "b" #'flywrite-check-buffer)
-    (define-key prefix "p" #'flywrite-check-paragraph)
+    (define-key prefix "." #'flywrite-check-at-point)
     (define-key prefix "c" #'flywrite-clear)
     (define-key map (kbd "C-c C-g") prefix)
     map)

@@ -22,7 +22,7 @@ This is a pure Emacs Lisp package with no build system, no external dependencies
 emacs -Q --batch -f batch-byte-compile flywrite-mode.el
 ```
 
-**Requires:** Emacs 27.1+, an Anthropic API key (via `flywrite-api-key`, `flywrite-api-key-file`, or `ANTHROPIC_API_KEY` env var).
+**Requires:** Emacs 27.1+, an Anthropic API key (via `flywrite-api-key`, `flywrite-api-key-file`, or `FLYWRITE_API_KEY` env var).
 
 ## Architecture
 

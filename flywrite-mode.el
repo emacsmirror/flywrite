@@ -131,7 +131,7 @@ configure it.  See the README for details."
                  (string :tag "URL"))
   :group 'flywrite)
 
-(defconst flywrite--system-prompt
+(defcustom flywrite-system-prompt
   "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
@@ -146,7 +146,13 @@ Rules:
 - Keep reasons under 12 words
 - One entry per distinct issue
 - Do not flag correct sentences"
-  "System prompt sent with every API call.")
+  "System prompt sent with every API call.
+The prompt must instruct the model to return JSON with a
+\"suggestions\" array.  Each element needs \"quote\" and \"reason\"
+keys.  Customize this to change tone, strictness, or focus areas
+while preserving the JSON output format."
+  :type 'string
+  :group 'flywrite)
 
 ;;;; ---- Logging ----
 
@@ -284,9 +290,9 @@ HASH is the content hash at time of dispatch for stale checking."
          (api-key (flywrite--get-api-key))
          (system-msg (if flywrite-enable-caching
                          `[((type . "text")
-                            (text . ,flywrite--system-prompt)
+                            (text . ,flywrite-system-prompt)
                             (cache_control . ((type . "ephemeral"))))]
-                       flywrite--system-prompt))
+                       flywrite-system-prompt))
          (payload (json-encode
                    `((model . ,flywrite-model)
                      (max_tokens . 300)

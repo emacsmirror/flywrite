@@ -69,6 +69,28 @@ Optional settings:
 (setq flywrite-debug t)                            ; log to *flywrite-log*
 ```
 
+### System prompt
+
+Customize `flywrite-system-prompt` to change tone, strictness, or focus areas. The prompt must instruct the model to return JSON with a `suggestions` array where each element has `quote` and `reason` keys. The default is:
+
+```elisp
+(setq flywrite-system-prompt
+  "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
+Return JSON only. No text outside the JSON.
+
+If the sentence is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\", \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct sentences")
+```
+
 ## Usage
 
 Enable the mode in any buffer:

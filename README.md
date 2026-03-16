@@ -2,9 +2,7 @@
 
 An Emacs minor mode that provides inline writing suggestions powered by an LLM. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area.
 
-## Privacy warning
-
-Flywrite sends the text you are editing to an LLM API for analysis. Do not use flywrite-mode when editing files that contain sensitive or confidential information.
+**Privacy warning:** Flywrite sends your document text to an LLM API.
 
 ## Installation
 
@@ -45,13 +43,12 @@ Configure with use-package
 
 ### API providers
 
-Set `flywrite-api-url` to point to a Messages API-compatible endpoint, then configure an API key (`flywrite-api-key` or `flywrite-api-key-file` or `FLYWRITE_API_KEY` environment variable).  By default, the key is sent as a `Bearer` token in the `Authorization` header.  Use `flywrite-api-headers` for provider-specific headers.
+Set `flywrite-api-url` to point to a Messages API-compatible endpoint, then configure an API key (`flywrite-api-key` or `flywrite-api-key-file` or `FLYWRITE_API_KEY` environment variable).  Anthropic endpoints are auto-detected and use the `x-api-key` header; all other providers use a `Bearer` token in the `Authorization` header.
 
 **Anthropic**
 1. `(setq flywrite-api-url "https://api.anthropic.com/v1/messages")`
-2. `(setq flywrite-api-headers '(("x-api-key" . "YOUR-KEY") ("anthropic-version" . "2023-06-01")))`
-3. Get an API key at https://console.anthropic.com/settings/keys
-4. Add credits at https://platform.claude.com/settings/billing
+2. Get an API key at https://console.anthropic.com/settings/keys
+3. Add credits at https://platform.claude.com/settings/billing
 
 **OpenAI**
 1. `(setq flywrite-api-url "https://api.openai.com/v1/messages")`
@@ -82,6 +79,7 @@ Optional settings:
 (setq flywrite-max-concurrent 3)                   ; max parallel API calls
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
 (setq flywrite-debug t)                            ; log to *flywrite-log*
+(setq flywrite-api-headers '(("Custom-Header" . "value")))  ; extra HTTP headers
 ```
 
 ### System prompt

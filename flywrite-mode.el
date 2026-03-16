@@ -388,8 +388,18 @@ request.  START-TIME is used for latency logging."
                                                      diag-beg diag-end reason))
                                   (flywrite--log "Quote not found, skipping: %s" quote-str))))
                             ;; Report all diagnostics to flymake
-                            (when flywrite--report-fn
-                              (funcall flywrite--report-fn flywrite--diagnostics))
+                            (if flywrite--report-fn
+                                (funcall flywrite--report-fn flywrite--diagnostics)
+                              (flywrite--log "Warning: report-fn nil, diag-fns=%s"
+                                             flymake-diagnostic-functions)
+                              ;; Re-add backend if something removed it
+                              (unless (memq #'flywrite-flymake
+                                            flymake-diagnostic-functions)
+                                (flywrite--log "Re-adding flywrite-flymake backend")
+                                (add-hook 'flymake-diagnostic-functions
+                                          #'flywrite-flymake nil t))
+                              (when (bound-and-true-p flymake-mode)
+                                (flymake-start)))
                             ;; Mark as checked
                             (puthash hash t flywrite--checked-sentences))
                         (error
@@ -461,8 +471,11 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
 ;;;; ---- Flymake backend ----
 
 (defun flywrite-flymake (report-fn &rest _args)
-  "Flymake backend for flywrite.  Stores REPORT-FN for later use."
-  (setq flywrite--report-fn report-fn))
+  "Flymake backend for flywrite.  Stores REPORT-FN for later use.
+Reports any existing diagnostics immediately so flymake can display them."
+  (flywrite--log "flywrite-flymake called by flymake, report-fn set")
+  (setq flywrite--report-fn report-fn)
+  (funcall report-fn flywrite--diagnostics))
 
 ;;;; ---- Interactive commands ----
 
@@ -555,6 +568,14 @@ flymake diagnostics."
    (t
     (flywrite--enable))))
 
+(defun flywrite--ensure-flymake-backend ()
+  "Ensure `flywrite-flymake' is in `flymake-diagnostic-functions'.
+Eglot replaces the buffer-local value with only its own backend."
+  (when (and flywrite-mode
+             (not (memq #'flywrite-flymake flymake-diagnostic-functions)))
+    (flywrite--log "Re-adding flywrite-flymake after eglot setup")
+    (add-hook 'flymake-diagnostic-functions #'flywrite-flymake nil t)))
+
 (defun flywrite--enable ()
   "Set up flywrite-mode in the current buffer."
   ;; Initialize buffer-local state
@@ -573,6 +594,11 @@ flymake diagnostics."
     (flymake-mode 1))
   (add-hook 'flymake-diagnostic-functions #'flywrite-flymake nil t)
 
+  ;; Re-add our backend after eglot setup (eglot replaces
+  ;; flymake-diagnostic-functions with only its own backend)
+  (when (fboundp 'eglot-managed-mode-hook)
+    (add-hook 'eglot-managed-mode-hook #'flywrite--ensure-flymake-backend nil t))
+
   ;; Start idle timer
   (setq flywrite--idle-timer
         (run-with-idle-timer flywrite-idle-delay t
@@ -590,6 +616,7 @@ flymake diagnostics."
   ;; Remove hooks
   (remove-hook 'after-change-functions #'flywrite--after-change t)
   (remove-hook 'flymake-diagnostic-functions #'flywrite-flymake t)
+  (remove-hook 'eglot-managed-mode-hook #'flywrite--ensure-flymake-backend t)
 
   ;; Clear diagnostics
   (when flywrite--report-fn

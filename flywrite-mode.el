@@ -603,6 +603,8 @@ Respects `flywrite-granularity'."
   (clrhash flywrite--checked-sentences)
   (when flywrite--report-fn
     (funcall flywrite--report-fn nil))
+  (when (bound-and-true-p flymake-mode)
+    (flymake-start))
   (message "flywrite: cleared all diagnostics and caches"))
 
 ;;;; ---- Keymap ----

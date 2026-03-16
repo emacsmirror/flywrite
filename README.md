@@ -113,7 +113,8 @@ Rules:
 - \"quote\" must be an exact substring of the input
 - Keep reasons under 12 words
 - One entry per distinct issue
-- Do not flag correct sentences")
+- Do not flag correct sentences
+- Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content")
 ```
 
 ### Popup explanations

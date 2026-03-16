@@ -263,7 +263,13 @@ BEG and END are the changed region boundaries."
                                     flywrite--dirty-registry))
                 ;; Add new dirty entry
                 (push (list ubeg uend hash) flywrite--dirty-registry)
-                (flywrite--log "Dirty: [%d-%d] hash=%s" ubeg uend (substring hash 0 8))))))
+                (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
+                               ubeg uend (substring hash 0 8)
+                               (length flywrite--dirty-registry)
+                               (truncate-string-to-width
+                                (string-trim
+                                 (buffer-substring-no-properties ubeg uend))
+                                80 nil nil t))))))
       (error
        (flywrite--log "Error in after-change: %s" (error-message-string err))))))
 
@@ -570,9 +576,20 @@ Prompts for confirmation when the count exceeds
     (when (and (> (length units) flywrite-check-confirm-threshold)
                (not (y-or-n-p (format "Check %d sentences? " (length units)))))
       (user-error "Cancelled"))
-    (dolist (entry units)
-      (push entry flywrite--dirty-registry))
-    (message "flywrite: queued %d sentences for checking" (length units))))
+    (let ((count 0))
+      (dolist (entry units)
+        (push entry flywrite--dirty-registry)
+        (setq count (1+ count))
+        (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
+                       (nth 0 entry) (nth 1 entry)
+                       (substring (nth 2 entry) 0 8)
+                       (length flywrite--dirty-registry)
+                       (truncate-string-to-width
+                        (string-trim
+                         (buffer-substring-no-properties
+                          (nth 0 entry) (nth 1 entry)))
+                        80 nil nil t)))
+      (message "flywrite: queued %d sentences for checking" count))))
 
 (defun flywrite-check-at-point ()
   "Queue the sentence or paragraph at point for checking.

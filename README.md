@@ -24,8 +24,11 @@ Configure with use-package
 (use-package flywrite-mode
   :load-path "/path/to/flywrite"
 
+  ;; Important for those who use (setq use-package-always-defer t)
+  :commands (flywrite-mode)
+
   ;; Optional: enable automatically for writing modes
-  :hook (text-mode . flywrite-mode)
+  ;; :hook (text-mode . flywrite-mode)
 
   ;; Set API key (choose one method):
   :config

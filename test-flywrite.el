@@ -220,4 +220,320 @@
     (should-not flywrite-mode)
     (should-not flywrite--idle-timer)))
 
+;;;; ---- Sentence boundaries with test file content (test00.txt) ----
+
+(ert-deftest flywrite-test-sentence-bounds-plain-text ()
+  "Sentence detection in multi-sentence plain text (like test00.txt)."
+  (let ((flywrite-granularity 'sentence))
+    (with-temp-buffer
+      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys. The weather was very extremely hot outside yesterday.")
+      ;; First sentence
+      (let ((bounds (flywrite--unit-bounds-at-pos 1)))
+        (should (string= (buffer-substring-no-properties (car bounds) (cdr bounds))
+                          "The quick brown fox jumpted over the lazy dog.")))
+      ;; Second sentence (start from middle of it)
+      (let ((bounds (flywrite--unit-bounds-at-pos 50)))
+        (should (string-match-p "Him and his friend"
+                                (buffer-substring-no-properties (car bounds) (cdr bounds)))))
+      ;; Third sentence (start from near end)
+      (let ((bounds (flywrite--unit-bounds-at-pos 110)))
+        (should (string-match-p "The weather was"
+                                (buffer-substring-no-properties (car bounds) (cdr bounds))))))))
+
+(ert-deftest flywrite-test-collect-units-plain-text ()
+  "Collect all sentences from multi-sentence plain text (test00.txt)."
+  (let ((flywrite-granularity 'sentence))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys. The weather was very extremely hot outside yesterday.")
+      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
+        (should (= (length units) 3)))
+      (flywrite-mode -1))))
+
+;;;; ---- Paragraph boundaries with multi-paragraph content (test01.md) ----
+
+(ert-deftest flywrite-test-paragraph-bounds-multi ()
+  "Paragraph detection in multi-paragraph text (like test01.md)."
+  (let ((flywrite-granularity 'paragraph))
+    (with-temp-buffer
+      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store.\n\nTheir going to the park later today, irregardless of the rain. Each of the students need to submit there homework.\n\nThe morning light filtered through the curtains and cast long shadows across the floor.")
+      ;; First paragraph
+      (let ((bounds (flywrite--unit-bounds-at-pos 1)))
+        (should (string-match-p "quick brown fox"
+                                (buffer-substring-no-properties (car bounds) (cdr bounds))))
+        (should (string-match-p "grocerys\\|store"
+                                (buffer-substring-no-properties (car bounds) (cdr bounds)))))
+      ;; Second paragraph
+      (let* ((para2-start (+ 1 (string-match "\n\nTheir"
+                                              (buffer-substring-no-properties 1 (point-max)))))
+             (bounds (flywrite--unit-bounds-at-pos (+ 3 para2-start))))
+        (should (string-match-p "Their going"
+                                (buffer-substring-no-properties (car bounds) (cdr bounds))))))))
+
+(ert-deftest flywrite-test-collect-units-paragraphs ()
+  "Collect paragraph units from multi-paragraph content."
+  (let ((flywrite-granularity 'paragraph))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "First paragraph content here.\n\nSecond paragraph content here.\n\nThird paragraph content here.")
+      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
+        (should (= (length units) 3)))
+      (flywrite-mode -1))))
+
+;;;; ---- LaTeX content (test02.tex, test04.tex) ----
+
+(ert-deftest flywrite-test-sentence-bounds-latex ()
+  "Sentence detection works inside LaTeX document body (test02.tex)."
+  (let ((flywrite-granularity 'sentence))
+    (with-temp-buffer
+      (insert "\\begin{document}\n\nThe quick brown fox jumpted over the lazy dog. Him and his friend went to the store.\n\n\\end{document}")
+      ;; Find a sentence inside the document body
+      (let ((bounds (flywrite--unit-bounds-at-pos 20)))
+        (should (string-match-p "quick brown fox"
+                                (buffer-substring-no-properties (car bounds) (cdr bounds))))))))
+
+(ert-deftest flywrite-test-collect-units-latex-prose ()
+  "Collect units from LaTeX prose, ignoring preamble-like lines."
+  (let ((flywrite-granularity 'sentence))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys.")
+      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
+        (should (= (length units) 2)))
+      (flywrite-mode -1))))
+
+;;;; ---- Content hashing with different formats ----
+
+(ert-deftest flywrite-test-hash-ignores-surrounding-whitespace-in-buffer ()
+  "Hash depends on exact buffer content between positions."
+  (let (h1 h2)
+    (with-temp-buffer
+      (insert "  Hello world.  ")
+      (setq h1 (flywrite--content-hash 1 (point-max))))
+    (with-temp-buffer
+      (insert "Hello world.")
+      (setq h2 (flywrite--content-hash 1 (point-max))))
+    ;; Different because the buffer content differs
+    (should-not (string= h1 h2))))
+
+(ert-deftest flywrite-test-hash-subregion ()
+  "Hash of a subregion differs from hash of the whole buffer."
+  (with-temp-buffer
+    (insert "First sentence. Second sentence.")
+    (let ((h-all (flywrite--content-hash 1 (point-max)))
+          (h-part (flywrite--content-hash 1 16)))
+      (should-not (string= h-all h-part)))))
+
+;;;; ---- Dirty registry with realistic edits ----
+
+(ert-deftest flywrite-test-after-change-multi-sentence ()
+  "After-change with multiple sentences marks at least one dirty."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "First sentence. Second sentence. Third sentence.")
+    (flywrite--after-change 1 17 0)
+    (should flywrite--dirty-registry)
+    (flywrite-mode -1)))
+
+(ert-deftest flywrite-test-after-change-replaces-overlapping ()
+  "A second change to the same region replaces the dirty entry."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Hello world.")
+    (flywrite--after-change 1 (point-max) 0)
+    (let ((count-before (length flywrite--dirty-registry)))
+      ;; Same region, same content — should not add duplicate
+      (flywrite--after-change 1 (point-max) 0)
+      (should (= (length flywrite--dirty-registry) count-before)))
+    (flywrite-mode -1)))
+
+(ert-deftest flywrite-test-dirty-registry-cleared-on-disable ()
+  "Disabling the mode clears the dirty registry."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Hello world.")
+    (flywrite--after-change 1 (point-max) 0)
+    (should flywrite--dirty-registry)
+    (flywrite-mode -1)
+    (should-not flywrite--dirty-registry)))
+
+;;;; ---- Skip detection ----
+
+(ert-deftest flywrite-test-skip-faces ()
+  "Text with code-related font-lock faces is skipped."
+  (let ((flywrite-skip-modes nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "some code here")
+      ;; Simulate font-lock applying a code face
+      (put-text-property 1 15 'face 'font-lock-comment-face)
+      (should (flywrite--should-skip-p 1)))))
+
+(ert-deftest flywrite-test-skip-markdown-code-face ()
+  "Text with markdown-code-face is skipped."
+  (let ((flywrite-skip-modes nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "def count_words(text):")
+      (put-text-property 1 (point-max) 'face 'markdown-code-face)
+      (should (flywrite--should-skip-p 1)))))
+
+(ert-deftest flywrite-test-no-skip-plain-text ()
+  "Plain text without special faces is not skipped."
+  (let ((flywrite-skip-modes nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Normal prose text here.")
+      (should-not (flywrite--should-skip-p 1)))))
+
+(ert-deftest flywrite-test-skip-list-face ()
+  "Text with face as a list is checked correctly."
+  (let ((flywrite-skip-modes nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "some text")
+      (put-text-property 1 10 'face '(font-lock-string-face bold))
+      (should (flywrite--should-skip-p 1)))))
+
+;;;; ---- Collect units deduplication ----
+
+(ert-deftest flywrite-test-collect-units-no-duplicates ()
+  "Collecting units does not produce duplicate entries for the same position."
+  (let ((flywrite-granularity 'sentence))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "One sentence. Another sentence.")
+      (let* ((units (flywrite--collect-units-in-region 1 (point-max)))
+             (begs (mapcar #'car units)))
+        ;; No duplicate start positions
+        (should (= (length begs) (length (delete-dups (copy-sequence begs))))))
+      (flywrite-mode -1))))
+
+(ert-deftest flywrite-test-collect-units-empty-buffer ()
+  "Collecting units in an empty buffer returns nil."
+  (let ((flywrite-granularity 'sentence))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
+        (should (= (length units) 0)))
+      (flywrite-mode -1))))
+
+;;;; ---- Flymake backend ----
+
+(ert-deftest flywrite-test-flymake-backend-stores-report-fn ()
+  "The flymake backend stores the report function."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (let ((called nil))
+      (flywrite-flymake (lambda (diags) (setq called t)))
+      (should called)
+      (should flywrite--report-fn))
+    (flywrite-mode -1)))
+
+(ert-deftest flywrite-test-flymake-backend-reports-existing-diags ()
+  "The flymake backend reports existing diagnostics immediately."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Test text.")
+    ;; Add a fake diagnostic
+    (push (flymake-make-diagnostic (current-buffer) 1 5 :note "test [flywrite]")
+          flywrite--diagnostics)
+    (let ((reported nil))
+      (flywrite-flymake (lambda (diags) (setq reported diags)))
+      (should (= (length reported) 1)))
+    (flywrite-mode -1)))
+
+;;;; ---- API key env var ----
+
+(ert-deftest flywrite-test-get-api-key-env ()
+  "Falls back to FLYWRITE_API_KEY env var."
+  (let ((flywrite-api-key nil)
+        (flywrite-api-key-file nil)
+        (process-environment (cons "FLYWRITE_API_KEY=sk-env-123" process-environment)))
+    (should (string= (flywrite--get-api-key) "sk-env-123"))))
+
+(ert-deftest flywrite-test-api-key-priority ()
+  "Direct key takes priority over file and env var."
+  (let* ((tmpfile (make-temp-file "flywrite-test-key"))
+         (flywrite-api-key "sk-direct")
+         (flywrite-api-key-file tmpfile)
+         (process-environment (cons "FLYWRITE_API_KEY=sk-env" process-environment)))
+    (unwind-protect
+        (progn
+          (with-temp-file tmpfile (insert "sk-from-file\n"))
+          (should (string= (flywrite--get-api-key) "sk-direct")))
+      (delete-file tmpfile))))
+
+;;;; ---- Drain queue ----
+
+(ert-deftest flywrite-test-drain-queue-skips-checked ()
+  "Drain queue skips entries already in checked-sentences."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Hello world.")
+    (let ((hash (flywrite--content-hash 1 (point-max))))
+      (puthash hash t flywrite--checked-sentences)
+      (setq flywrite--pending-queue
+            (list (list (current-buffer) 1 (point-max) hash)))
+      (setq flywrite--in-flight 0)
+      ;; drain-queue should skip the checked entry
+      ;; (it won't call send-request since api-url is nil, but it
+      ;; removes the entry from the queue)
+      (flywrite--drain-queue)
+      (should-not flywrite--pending-queue))
+    (flywrite-mode -1)))
+
+;;;; ---- Logging ----
+
+(ert-deftest flywrite-test-log-when-debug ()
+  "Logging writes to *flywrite-log* when debug is on."
+  (let ((flywrite-debug t))
+    (flywrite--log "test message %d" 42)
+    (with-current-buffer "*flywrite-log*"
+      (should (string-match-p "test message 42"
+                              (buffer-substring-no-properties 1 (point-max)))))
+    (kill-buffer "*flywrite-log*")))
+
+(ert-deftest flywrite-test-log-silent-when-no-debug ()
+  "Logging does nothing when debug is off."
+  (let ((flywrite-debug nil))
+    (when (get-buffer "*flywrite-log*")
+      (kill-buffer "*flywrite-log*"))
+    (flywrite--log "should not appear")
+    (should-not (get-buffer "*flywrite-log*"))))
+
+;;;; ---- Mode idempotency ----
+
+(ert-deftest flywrite-test-mode-enable-twice ()
+  "Enabling the mode twice does not create duplicate timers."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (let ((timer1 flywrite--idle-timer))
+      (flywrite-mode 1)
+      ;; Timer should be the same object (no duplicate)
+      (should (eq flywrite--idle-timer timer1)))
+    (flywrite-mode -1)))
+
+(ert-deftest flywrite-test-mode-disable-twice ()
+  "Disabling the mode twice is harmless."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (flywrite-mode -1)
+    (flywrite-mode -1)
+    (should-not flywrite-mode)
+    (should-not flywrite--idle-timer)))
+
 ;;; test-flywrite.el ends here

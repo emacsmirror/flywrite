@@ -129,6 +129,11 @@ without needing to edit."
   :type 'boolean
   :group 'flywrite)
 
+(defcustom flywrite-test-on-load t
+  "When non-nil, test the API connection when `flywrite-mode' is enabled."
+  :type 'boolean
+  :group 'flywrite)
+
 ;; Forward-declare the minor-mode variable (defined by define-minor-mode
 ;; below) so the byte compiler doesn't warn about a free variable.
 (defvar flywrite-mode)
@@ -330,6 +335,76 @@ key is found (e.g., for local providers like Ollama)."
   "Return non-nil if `flywrite-api-url' points to the Anthropic API."
   (and flywrite-api-url
        (string-match-p "api\\.anthropic\\.com" flywrite-api-url)))
+
+(defun flywrite--test-connection ()
+  "Send a test request to verify the API connection.
+Shows status in the minibuffer.  On failure, suggests enabling
+`flywrite-debug' for troubleshooting."
+  (message "flywrite: testing connection")
+  (flywrite--log "Connection test: starting")
+  (condition-case err
+      (let* ((_ (unless flywrite-api-url
+                  (error "flywrite-api-url is not set.  Try M-x customize-variable flywrite-api-url")))
+             (text "The quick brown fox jumped over the lazy dog.")
+             (api-key (flywrite--get-api-key))
+             (anthropic-p (flywrite--anthropic-api-p))
+             (_ (when (and anthropic-p (not api-key))
+                  (error "Anthropic API requires an API key")))
+             (system-msg (if (and anthropic-p flywrite-enable-caching)
+                             `[((type . "text")
+                                (text . ,flywrite-system-prompt)
+                                (cache_control . ((type . "ephemeral"))))]
+                           flywrite-system-prompt))
+             (payload (json-encode
+                       (if anthropic-p
+                           `((model . ,flywrite-model)
+                             (max_tokens . 300)
+                             (system . ,system-msg)
+                             (messages . [((role . "user")
+                                           (content . ,text))]))
+                         `((model . ,flywrite-model)
+                           (max_tokens . 300)
+                           (messages . [((role . "system")
+                                         (content . ,flywrite-system-prompt))
+                                        ((role . "user")
+                                         (content . ,text))])))))
+             (url-request-method "POST")
+             (url-request-extra-headers
+              (append `(("Content-Type" . "application/json")
+                        ,@(cond
+                           (anthropic-p
+                            `(("x-api-key" . ,api-key)
+                              ("anthropic-version" . "2023-06-01")))
+                           (api-key
+                            `(("Authorization" . ,(concat "Bearer " api-key))))))
+                      flywrite-api-headers))
+             (url-request-data (encode-coding-string payload 'utf-8)))
+        (flywrite--log "Connection test: sending request to %s" flywrite-api-url)
+        (url-retrieve
+         flywrite-api-url
+         (lambda (status)
+           (unwind-protect
+               (condition-case cb-err
+                   (progn
+                     (when (plist-get status :error)
+                       (error "API request failed: %s" (plist-get status :error)))
+                     (goto-char (point-min))
+                     (unless (re-search-forward "\r?\n\r?\n" nil t)
+                       (error "Malformed HTTP response"))
+                     (json-read)
+                     (flywrite--log "Connection test: success")
+                     (message "flywrite: connection test success"))
+                 (error
+                  (flywrite--log "Connection test failed: %s"
+                                  (error-message-string cb-err))
+                  (message "flywrite: connection test failed: %s.  Enable `flywrite-debug' and check *flywrite-log* for details."
+                           (error-message-string cb-err))))
+             (kill-buffer (current-buffer))))
+         nil t t))
+    (error
+     (flywrite--log "Connection test failed: %s" (error-message-string err))
+     (message "flywrite: connection test failed: %s.  Enable `flywrite-debug' and check *flywrite-log* for details."
+              (error-message-string err)))))
 
 (defun flywrite--send-request (buf beg end hash)
   "Send an API request for the text in BUF between BEG and END.
@@ -820,7 +895,11 @@ Eglot replaces the buffer-local value with only its own backend."
                  (or flywrite-api-url "nil")
                  flywrite-model flywrite-granularity
                  flywrite-idle-delay flywrite-max-concurrent
-                 flywrite-eager flywrite-enable-caching))
+                 flywrite-eager flywrite-enable-caching)
+
+  ;; Test API connection on startup
+  (when flywrite-test-on-load
+    (flywrite--test-connection)))
 
 (defun flywrite--disable ()
   "Tear down flywrite-mode in the current buffer."

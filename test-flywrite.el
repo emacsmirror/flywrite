@@ -665,4 +665,47 @@
         (should (= flywrite--in-flight 0))))
     (flywrite-mode -1)))
 
+;;;; ---- Connection test ----
+
+(ert-deftest flywrite-test-connection-test-disabled ()
+  "Connection test is skipped when `flywrite-test-on-load' is nil."
+  (let ((flywrite-test-on-load nil)
+        (flywrite-api-url nil))
+    (with-temp-buffer
+      (text-mode)
+      ;; Should not error even with no API URL
+      (flywrite-mode 1)
+      (should flywrite-mode)
+      (flywrite-mode -1))))
+
+(ert-deftest flywrite-test-connection-test-no-url ()
+  "Connection test reports error when API URL is not set."
+  (let ((flywrite-test-on-load t)
+        (flywrite-api-url nil)
+        (last-msg nil))
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
+      (with-temp-buffer
+        (text-mode)
+        (flywrite-mode 1)
+        (should (string-match-p "flywrite-api-url is not set" last-msg))
+        (flywrite-mode -1)))))
+
+(ert-deftest flywrite-test-connection-test-no-api-key ()
+  "Connection test reports error when Anthropic API key is missing."
+  (let ((flywrite-test-on-load t)
+        (flywrite-api-url "https://api.anthropic.com/v1/messages")
+        (flywrite-api-key nil)
+        (flywrite-api-key-file nil)
+        (process-environment (cons "FLYWRITE_API_KEY=" process-environment))
+        (last-msg nil))
+    (setenv "FLYWRITE_API_KEY" nil)
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
+      (with-temp-buffer
+        (text-mode)
+        (flywrite-mode 1)
+        (should (string-match-p "API key" last-msg))
+        (flywrite-mode -1)))))
+
 ;;; test-flywrite.el ends here

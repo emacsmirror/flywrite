@@ -110,6 +110,7 @@ Settings with defaults.
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
 (setq flywrite-eager t)                            ; eagerly check around point
 (setq flywrite-debug t)                            ; log to *flywrite-log*
+(setq flywrite-test-on-load t)                     ; connection test on enable
 (setq flywrite-api-headers '(("Custom-Header" . "value")))  ; extra HTTP headers
 ```
 
@@ -162,6 +163,9 @@ As you move or type, flywrite will automatically run checks after a short idle d
 Run any command with `M-x`. No default keybindings are provided — bind them yourself if desired.
 
 ## Troubleshooting
+
+**Connection test fails on startup**
+Flywrite tests the API connection when the mode is enabled. If you see "connection test failed" in the minibuffer, enable `flywrite-debug` and check `*flywrite-log*` for details. Verify `flywrite-api-url` and your API key are configured correctly. To disable the startup test: `(setq flywrite-test-on-load nil)`.
 
 **Nothing happens / no underlines appear**
 1. Make sure `flywrite-mode` is active: check the mode line for `flywrite`.

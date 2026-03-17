@@ -21,7 +21,7 @@ Configure (Emacs 30+).
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
   (setq flywrite-api-key-file "~/.flywrite-api-key")
-  (setq flywrite-system-prompt 'default)  ; 'default, 'academic, or custom string
+  (setq flywrite-system-prompt 'academic)  ; 'prose, 'academic, or custom string
   (setq flywrite-debug t))  ; log to *flywrite-log*, recommended for beta
 
 (use-package flymake-popon
@@ -45,7 +45,7 @@ Configure.
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
   (setq flywrite-api-key-file "~/.flywrite-api-key")
-  (setq flywrite-system-prompt 'default)  ; 'default, 'academic, or custom string
+  (setq flywrite-system-prompt 'academic)  ; 'prose, 'academic, or custom string
   (setq flywrite-debug t))  ; log to *flywrite-log*, recommended for beta
 
 (use-package flymake-popon
@@ -110,7 +110,7 @@ Settings with defaults.
 (setq flywrite-idle-delay 1.5)                     ; seconds before checking
 (setq flywrite-max-concurrent 3)                   ; max parallel API calls
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
-(setq flywrite-system-prompt 'default)             ; 'default, 'academic, or custom string
+(setq flywrite-system-prompt 'academic)            ; 'prose, 'academic, or custom string
 (setq flywrite-eager t)                            ; eagerly check around point
 (setq flywrite-debug t)                            ; log to *flywrite-log*
 (setq flywrite-test-on-load t)                     ; connection test on enable
@@ -122,12 +122,12 @@ Settings with defaults.
 
 | Symbol | Description |
 |--------|-------------|
-| `default` | General grammar, clarity, and style feedback (the default) |
-| `academic` | Everything in `default` plus rules for formal academic writing (see below) |
+| `prose` | General grammar, clarity, and style feedback |
+| `academic` | Everything in `prose` plus rules for formal academic writing (the default) |
 
 Select a built-in style:
 ```elisp
-(setq flywrite-system-prompt 'academic)
+(setq flywrite-system-prompt 'prose)  ; or 'academic (the default)
 ```
 
 Or provide a custom string. The prompt must instruct the model to return JSON with a `suggestions` array where each element has `quote` and `reason` keys:
@@ -150,7 +150,7 @@ Rules:
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content")
 ```
 
-The `academic` style adds these rules to the default prompt:
+The `academic` style adds these rules to the `prose` prompt:
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging (e.g., 'a lot', 'things', 'stuff', 'really')
 - Flag first person when it weakens objectivity (e.g., 'I think', 'we feel')
@@ -227,7 +227,7 @@ The `samples/` directory contains files for manual testing in Emacs. Open a file
 | `test04.tex` | Short LaTeX with an itemize list containing a spelling error |
 | `test05.md` | Markdown with headings, blockquotes, a code block, and errors (should skip code blocks) |
 | `test06.tex` | Minimal LaTeX exam with a solution block (should handle custom environments) |
-| `test07.txt` | Two paragraphs: general errors (flagged by `default`), then academic-only errors (flagged by `academic`) |
+| `test07.txt` | Two paragraphs: general errors (flagged by `prose`), then academic-only errors (flagged by `academic`) |
 
 ## Debugging
 

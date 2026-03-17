@@ -174,7 +174,7 @@ configure it.  See the README for details."
                  (string :tag "URL"))
   :group 'flywrite)
 
-(defconst flywrite--default-prompt
+(defconst flywrite--prose-prompt
   "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
@@ -190,7 +190,7 @@ Rules:
 - One entry per distinct issue
 - Do not flag correct sentences
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content"
-  "Default system prompt for general writing feedback.")
+  "System prompt for general prose writing feedback.")
 
 (defconst flywrite--academic-prompt
   "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
@@ -220,21 +220,21 @@ Rules:
   "System prompt for academic writing feedback.")
 
 (defconst flywrite--prompt-alist
-  `((default . ,flywrite--default-prompt)
+  `((prose . ,flywrite--prose-prompt)
     (academic . ,flywrite--academic-prompt))
   "Alist mapping prompt style symbols to prompt strings.")
 
-(defcustom flywrite-system-prompt 'default
+(defcustom flywrite-system-prompt 'academic
   "System prompt sent with every API call.
 Can be a symbol selecting a built-in prompt style or a custom
-string.  Built-in styles: `default' (general writing feedback)
+string.  Built-in styles: `prose' (general writing feedback)
 and `academic' (adds rules for formal academic writing).
 
 The prompt must instruct the model to return JSON with a
 \"suggestions\" array.  Each element needs \"quote\" and \"reason\"
 keys.  Customize this to change tone, strictness, or focus areas
 while preserving the JSON output format."
-  :type '(choice (const :tag "Default" default)
+  :type '(choice (const :tag "Prose" prose)
                  (const :tag "Academic" academic)
                  (string :tag "Custom prompt"))
   :group 'flywrite)

@@ -744,10 +744,10 @@
 
 ;;;; ---- System prompt resolution ----
 
-(ert-deftest flywrite-test-prompt-default-symbol ()
-  "Symbol `default' resolves to the default prompt string."
-  (let ((flywrite-system-prompt 'default))
-    (should (string= (flywrite--get-system-prompt) flywrite--default-prompt))))
+(ert-deftest flywrite-test-prompt-prose-symbol ()
+  "Symbol `prose' resolves to the prose prompt string."
+  (let ((flywrite-system-prompt 'prose))
+    (should (string= (flywrite--get-system-prompt) flywrite--prose-prompt))))
 
 (ert-deftest flywrite-test-prompt-academic-symbol ()
   "Symbol `academic' resolves to a string with academic-specific rules."

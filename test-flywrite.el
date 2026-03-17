@@ -691,7 +691,7 @@
         (should (string-match-p "flywrite-api-url is not set" last-msg))
         (flywrite-mode -1)))))
 
-(ert-deftest flywrite-test-connection-test-no-api-key ()
+(ert-deftest flywrite-test-connection-test-no-api-key-anthropic ()
   "Connection test reports error when Anthropic API key is missing."
   (let ((flywrite-test-on-load t)
         (flywrite-api-url "https://api.anthropic.com/v1/messages")
@@ -705,7 +705,41 @@
       (with-temp-buffer
         (text-mode)
         (flywrite-mode 1)
-        (should (string-match-p "API key" last-msg))
+        (should (string-match-p "API key is not set" last-msg))
+        (flywrite-mode -1)))))
+
+(ert-deftest flywrite-test-connection-test-no-api-key-openai ()
+  "Connection test reports error when OpenAI API key is missing."
+  (let ((flywrite-test-on-load t)
+        (flywrite-api-url "https://api.openai.com/v1/chat/completions")
+        (flywrite-api-key nil)
+        (flywrite-api-key-file nil)
+        (process-environment (cons "FLYWRITE_API_KEY=" process-environment))
+        (last-msg nil))
+    (setenv "FLYWRITE_API_KEY" nil)
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
+      (with-temp-buffer
+        (text-mode)
+        (flywrite-mode 1)
+        (should (string-match-p "API key is not set" last-msg))
+        (flywrite-mode -1)))))
+
+(ert-deftest flywrite-test-connection-test-no-api-key-gemini ()
+  "Connection test reports error when Gemini API key is missing."
+  (let ((flywrite-test-on-load t)
+        (flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
+        (flywrite-api-key nil)
+        (flywrite-api-key-file nil)
+        (process-environment (cons "FLYWRITE_API_KEY=" process-environment))
+        (last-msg nil))
+    (setenv "FLYWRITE_API_KEY" nil)
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
+      (with-temp-buffer
+        (text-mode)
+        (flywrite-mode 1)
+        (should (string-match-p "API key is not set" last-msg))
         (flywrite-mode -1)))))
 
 ;;; test-flywrite.el ends here

@@ -348,8 +348,10 @@ Shows status in the minibuffer.  On failure, suggests enabling
              (text "The quick brown fox jumped over the lazy dog.")
              (api-key (flywrite--get-api-key))
              (anthropic-p (flywrite--anthropic-api-p))
-             (_ (when (and anthropic-p (not api-key))
-                  (error "Anthropic API requires an API key")))
+             (local-p (and flywrite-api-url
+                          (string-match-p "\\(?:localhost\\|127\\.0\\.0\\.1\\)" flywrite-api-url)))
+             (_ (when (and (not api-key) (not local-p))
+                  (error "API key is not set.  See the README for configuration")))
              (system-msg (if (and anthropic-p flywrite-enable-caching)
                              `[((type . "text")
                                 (text . ,flywrite-system-prompt)

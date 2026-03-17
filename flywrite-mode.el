@@ -304,9 +304,12 @@ BEG and END are the changed region boundaries."
 ;;;; ---- API call ----
 
 (defun flywrite--read-api-key-file ()
-  "Read and return the API key from `flywrite-api-key-file', or nil."
-  (when (and flywrite-api-key-file
-             (file-readable-p flywrite-api-key-file))
+  "Read and return the API key from `flywrite-api-key-file', or nil.
+Signal an error if the file is set but not readable."
+  (when flywrite-api-key-file
+    (unless (file-readable-p flywrite-api-key-file)
+      (error "flywrite-api-key-file %s not found or not readable"
+             flywrite-api-key-file))
     (let ((key (string-trim
                 (with-temp-buffer
                   (insert-file-contents flywrite-api-key-file)

@@ -136,6 +136,23 @@ Rules:
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content")
 ```
 
+### Academic writing
+
+The default system prompt covers general grammar, clarity, and style. You can tailor flywrite to specific writing contexts by customizing the prompt. Remember to keep the JSON format instructions intact.
+
+**Academic writing** suggested additions
+- Flag informal language, contractions, and colloquialisms
+- Flag vague hedging (e.g., 'a lot', 'things', 'stuff', 'really')
+- Flag first person when it weakens objectivity (e.g., 'I think', 'we feel')
+- Flag unsupported superlatives (e.g., 'the best', 'the most important')
+- Flag wordiness and nominalizations (e.g., 'make an adjustment' -> 'adjust')
+- Flag subjective qualifiers (e.g., 'obviously', 'clearly', 'of course')
+- Flag ambiguous 'this/it/they' pronouns without antecedents (e.g., 'This is important' — this what?)
+- Flag weasel words (e.g., 'significantly' without statistical context, 'often', 'usually' without citation)
+- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus') — prefer 'Therefore', 'Additionally', 'Moreover'
+
+**Note on prompt length:** Longer system prompts increase token usage and cost per API call. Anthropic's prompt caching (`flywrite-enable-caching`, on by default) mitigates this by caching the system prompt across calls, but other providers may not offer caching. If cost is a concern, keep your system prompt concise.
+
 ### Popup explanations
 For the best experience, install [flymake-popon](https://github.com/akicho8/flymake-popon) to see suggestion explanations as inline popups near the flagged text (included in the [Quick start](#quick-start) config). Without it, suggestions are shown in the echo area when point is on a diagnostic.
 

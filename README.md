@@ -12,9 +12,27 @@ Get an Anthropic API key at https://console.anthropic.com/settings/keys and save
 
 Add credits at https://platform.claude.com/settings/billing — as of Spring 2026, $5 should last months of typical use.
 
+Configure (Emacs 30+).
+```elisp
+(use-package flywrite-mode
+  :ensure t
+  :vc (:url "https://github.com/awdeorio/flywrite" :branch "main")
+  :commands (flywrite-mode)
+  :config
+  (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
+  (setq flywrite-api-key-file "~/.flywrite-api-key"))
+
+(use-package flymake-popon
+  :hook (flymake-mode . flymake-popon-mode)
+  :ensure t)
+```
+
+<details>
+<summary>Manual install (Emacs 27+)</summary>
+
 Clone.
 ```bash
-git clone https://github.com/awdeorio/flywrite.git
+git clone https://github.com/awdeorio/flywrite.git ~/src/flywrite
 ```
 
 Configure.
@@ -30,6 +48,7 @@ Configure.
   :ensure t
   :hook (flymake-mode . flymake-popon-mode))
 ```
+</details>
 
 Open a text file and save this content (it contains intentional errors for flywrite to catch):
 

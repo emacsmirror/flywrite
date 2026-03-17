@@ -227,6 +227,7 @@ The `samples/` directory contains files for manual testing in Emacs. Open a file
 | `test04.tex` | Short LaTeX with an itemize list containing a spelling error |
 | `test05.md` | Markdown with headings, blockquotes, a code block, and errors (should skip code blocks) |
 | `test06.tex` | Minimal LaTeX exam with a solution block (should handle custom environments) |
+| `test07.txt` | Two paragraphs: general errors (flagged by `default`), then academic-only errors (flagged by `academic`) |
 
 ## Debugging
 

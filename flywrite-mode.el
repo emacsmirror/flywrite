@@ -286,7 +286,7 @@ BEG and END are the changed region boundaries."
                                  (buffer-substring-no-properties ubeg uend))
                                 80 nil nil t))))))
       (error
-       (flywrite--log "Error in after-change: %s" (error-message-string err))))))
+       (flywrite--log "Error in after-change: %s buf=%s" (error-message-string err) (buffer-name))))))
 
 ;;;; ---- API call ----
 
@@ -361,8 +361,8 @@ HASH is the content hash at time of dispatch for stale checking."
                   flywrite-api-headers))
          (url-request-data (encode-coding-string payload 'utf-8))
          (start-time (current-time)))
-    (flywrite--log "API call: [%d-%d] text=%.40s hash=%s"
-                   beg end text hash)
+    (flywrite--log "API call: [%d-%d] buf=%s url=%s text=%.80s hash=%s"
+                   beg end (buffer-name buf) flywrite-api-url text hash)
     (with-current-buffer buf
       (cl-incf flywrite--in-flight)
       ;; Mark as checked now to prevent duplicate in-flight requests
@@ -410,8 +410,15 @@ request.  START-TIME is used for latency logging."
             (progn
               ;; Check for HTTP errors
               (when (plist-get status :error)
-                (let ((err-info (plist-get status :error)))
-                  (flywrite--log "API HTTP error: %s (%.2fs) hash=%s" err-info latency hash)
+                (let* ((err-info (plist-get status :error))
+                       (err-body (save-excursion
+                                   (goto-char (point-min))
+                                   (when (re-search-forward "\r?\n\r?\n" nil t)
+                                     (truncate-string-to-width
+                                      (buffer-substring-no-properties (point) (point-max))
+                                      500 nil nil t)))))
+                  (flywrite--log "API HTTP error: %s (%.2fs) hash=%s\nResponse body: %s"
+                                 err-info latency hash (or err-body "<empty>"))
                   ;; On 429, also clear pending queue to stop hammering
                   (when (and (listp err-info)
                              (member 429 err-info))
@@ -425,8 +432,10 @@ request.  START-TIME is used for latency logging."
                           (setq flywrite--pending-queue nil)))))
                   (error "API request failed: %s" err-info)))
 
-              ;; Skip HTTP headers
+              ;; Extract HTTP status code and skip headers
               (goto-char (point-min))
+              (let ((http-status (when (looking-at "HTTP/[0-9.]+ \\([0-9]+\\)")
+                                   (match-string 1))))
               (unless (re-search-forward "\r?\n\r?\n" nil t)
                 (error "Malformed HTTP response"))
 
@@ -447,8 +456,12 @@ request.  START-TIME is used for latency logging."
                                     (message (and choice (alist-get 'message choice))))
                                (and message (alist-get 'content message))))))
 
-                (flywrite--log "Response: %.2fs hash=%s" latency hash)
+                (flywrite--log "Response: HTTP %s %.2fs hash=%s"
+                               (or http-status "?") latency hash)
 
+                (unless text
+                  (flywrite--log "Response had no extractable text, skipping hash=%s json=%S"
+                                 hash json-data))
                 (when (and text (buffer-live-p buf))
                   (with-current-buffer buf
                     ;; Stale check: verify the sentence hasn't changed
@@ -519,7 +532,7 @@ request.  START-TIME is used for latency logging."
                         (error
                          (flywrite--log "LLM returned unparseable response: %s hash=%s\nRaw text: %s"
                                         (error-message-string parse-err) hash text)
-                         (message "flywrite: LLM returned invalid JSON (not a bug in flywrite). Enable `flywrite-debug' and check *flywrite-log* for details."))))))))
+                         (message "flywrite: LLM returned invalid JSON (not a bug in flywrite). Enable `flywrite-debug' and check *flywrite-log* for details.")))))))))
           (error
            (flywrite--log "Response handler error: %s hash=%s" (error-message-string err) hash)
            (message "flywrite: API error: %s" (error-message-string err))
@@ -547,7 +560,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
     (with-current-buffer buf
       (when flywrite-mode
         (when flywrite-eager
-          (condition-case nil
+          (condition-case err
               (save-excursion
                 (let (pbeg pend)
                   (backward-paragraph)
@@ -559,7 +572,9 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
                   (when (> pend pbeg)
                     (dolist (entry (flywrite--collect-units-in-region pbeg pend))
                       (push entry flywrite--dirty-registry)))))
-            (error nil)))
+            (error
+             (flywrite--log "Error in eager scan: %s buf=%s"
+                            (error-message-string err) (buffer-name)))))
         (when flywrite--dirty-registry
           (let ((snapshot flywrite--dirty-registry)
                 (seen (make-hash-table :test 'equal)))
@@ -571,9 +586,12 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
               ;; Re-verify bounds, skip check, and dedup by hash
               (when (and (<= end (point-max))
                          (>= beg (point-min))
-                         (not (flywrite--should-skip-p beg))
                          (not (gethash hash flywrite--checked-sentences))
-                         (not (gethash hash seen)))
+                         (not (gethash hash seen))
+                         (or (not (flywrite--should-skip-p beg))
+                             (progn
+                               (flywrite--log "Skipped (non-prose region): [%d-%d] hash=%s" beg end hash)
+                               nil)))
                 (puthash hash t seen)
                 (if (< flywrite--in-flight flywrite-max-concurrent)
                     (flywrite--send-request buf beg end hash)
@@ -652,7 +670,7 @@ Prompts for confirmation when the count exceeds
         (setq count (1+ count))
         (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
                        (nth 0 entry) (nth 1 entry)
-                       (substring (nth 2 entry) 0 8)
+                       (nth 2 entry)
                        (length flywrite--dirty-registry)
                        (truncate-string-to-width
                         (string-trim
@@ -682,7 +700,7 @@ Prompts for confirmation when the count exceeds
         (setq count (1+ count))
         (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
                        (nth 0 entry) (nth 1 entry)
-                       (substring (nth 2 entry) 0 8)
+                       (nth 2 entry)
                        (length flywrite--dirty-registry)
                        (truncate-string-to-width
                         (string-trim
@@ -781,10 +799,19 @@ Eglot replaces the buffer-local value with only its own backend."
         (run-with-idle-timer flywrite-idle-delay t
                              #'flywrite--idle-timer-fn (current-buffer)))
 
-  (flywrite--log "flywrite-mode enabled in %s" (buffer-name)))
+  (flywrite--log "flywrite-mode enabled in %s (emacs %s, url=%s, model=%s, granularity=%s, idle=%.1f, max-concurrent=%d, eager=%s, caching=%s)"
+                 (buffer-name) emacs-version
+                 (or flywrite-api-url "nil")
+                 flywrite-model flywrite-granularity
+                 flywrite-idle-delay flywrite-max-concurrent
+                 flywrite-eager flywrite-enable-caching))
 
 (defun flywrite--disable ()
   "Tear down flywrite-mode in the current buffer."
+  (flywrite--log "flywrite-mode disabled in %s (in-flight=%d, pending=%d, dirty=%d)"
+                 (buffer-name) flywrite--in-flight
+                 (length flywrite--pending-queue)
+                 (length flywrite--dirty-registry))
   ;; Cancel idle timer
   (when flywrite--idle-timer
     (cancel-timer flywrite--idle-timer)
@@ -810,9 +837,7 @@ Eglot replaces the buffer-local value with only its own backend."
   (setq flywrite--diagnostics nil)
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
-  (clrhash flywrite--checked-sentences)
-
-  (flywrite--log "flywrite-mode disabled in %s" (buffer-name)))
+  (clrhash flywrite--checked-sentences))
 
 (provide 'flywrite-mode)
 

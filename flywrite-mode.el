@@ -560,179 +560,196 @@ HASH is the content hash at time of dispatch for stale checking."
         (with-current-buffer buf
           (push conn-buf flywrite--connection-buffers)))))))
 
+;;;; ---- Response handler helpers ----
+
+(defun flywrite--duplicate-callback-p (response-buf hash)
+  "Return non-nil if RESPONSE-BUF callback was already handled.
+Marks the buffer as handled on first call.  HASH is for logging."
+  (when (buffer-live-p response-buf)
+    (with-current-buffer response-buf
+      (if (bound-and-true-p flywrite--response-handled)
+          (progn
+            (flywrite--log "Ignoring duplicate callback for hash=%s" hash)
+            t)
+        (setq-local flywrite--response-handled t)
+        nil))))
+
+(defun flywrite--check-http-error (status buf latency hash)
+  "Signal an error if STATUS indicates an HTTP failure.
+BUF is the source buffer, LATENCY and HASH are for logging.
+Clears the pending queue on 429 rate-limit errors."
+  (when-let ((err-info (plist-get status :error)))
+    (let ((err-body (save-excursion
+                      (goto-char (point-min))
+                      (when (re-search-forward "\r?\n\r?\n" nil t)
+                        (truncate-string-to-width
+                         (buffer-substring-no-properties (point) (point-max))
+                         500 nil nil t)))))
+      (flywrite--log "API HTTP error: %s (%.2fs) hash=%s\nResponse body: %s"
+                     err-info latency hash (or err-body "<empty>"))
+      (when (and (listp err-info) (member 429 err-info))
+        (flywrite--log "Rate limited (429) hash=%s" hash)
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (when flywrite--pending-queue
+              (flywrite--log "Clearing %d queued requests due to rate limit hash=%s"
+                             (length flywrite--pending-queue) hash)
+              (setq flywrite--pending-queue nil)))))
+      (error "API request failed: %s" err-info))))
+
+(defun flywrite--extract-response-text ()
+  "Parse the current response buffer and return the LLM text.
+Skips HTTP headers, parses JSON, and returns (TEXT . JSON-DATA)
+or nil if no text could be extracted.  Signals on malformed HTTP."
+  (goto-char (point-min))
+  (let ((http-status (when (looking-at "HTTP/[0-9.]+ \\([0-9]+\\)")
+                       (match-string 1))))
+    (unless (re-search-forward "\r?\n\r?\n" nil t)
+      (error "Malformed HTTP response"))
+    ;; Parse JSON body (json-read returns alists with symbol keys)
+    ;; Anthropic: {content: [{type:"text", text:"..."}]}
+    ;; OpenAI:    {choices: [{message: {content: "..."}}]}
+    (let* ((json-data (json-read))
+           (text (if (flywrite--anthropic-api-p)
+                     (let* ((content (alist-get 'content json-data))
+                            (text-block (and (arrayp content)
+                                             (> (length content) 0)
+                                             (aref content 0))))
+                       (and text-block (alist-get 'text text-block)))
+                   (let* ((choices (alist-get 'choices json-data))
+                          (choice (and (arrayp choices)
+                                       (> (length choices) 0)
+                                       (aref choices 0)))
+                          (message (and choice (alist-get 'message choice))))
+                     (and message (alist-get 'content message))))))
+      (list http-status json-data text))))
+
+(defun flywrite--handle-stale-response (beg end hash)
+  "Return non-nil if the response for BEG..END with HASH is stale.
+When stale, removes the old hash and re-dirties the region."
+  (when (or (> end (point-max))
+            (< beg (point-min))
+            (not (string= hash (flywrite--content-hash beg end))))
+    (flywrite--log "Stale response discarded: [%d-%d] hash=%s" beg end hash)
+    (remhash hash flywrite--checked-sentences)
+    (let ((new-hash (when (and (<= beg (point-max)) (<= end (point-max)))
+                      (flywrite--content-hash beg end))))
+      (when (and new-hash (not (gethash new-hash flywrite--checked-sentences)))
+        (push (list beg end new-hash) flywrite--dirty-registry)))
+    t))
+
+(defun flywrite--apply-suggestions (buf beg end hash text)
+  "Parse TEXT as suggestion JSON and create diagnostics in BUF.
+BEG, END, HASH identify the checked region."
+  (condition-case parse-err
+      (let* ((clean-text (replace-regexp-in-string
+                          "\\`[ \t\n]*```\\(?:json\\)?[ \t]*\n?" ""
+                          (replace-regexp-in-string
+                           "\n?```[ \t\n]*\\'" "" text)))
+             (parsed (json-read-from-string clean-text))
+             (suggestions (alist-get 'suggestions parsed)))
+        (flywrite--log "Suggestions: %d for [%d-%d] hash=%s"
+                       (length suggestions) beg end hash)
+        ;; Remove old diagnostics for this region
+        (setq flywrite--diagnostics
+              (cl-remove-if
+               (lambda (diag)
+                 (and (>= (flymake-diagnostic-beg diag) beg)
+                      (<= (flymake-diagnostic-end diag) end)))
+               flywrite--diagnostics))
+        ;; Add new diagnostics
+        (let ((region-text (buffer-substring-no-properties beg end)))
+          (dolist (suggestion (append suggestions nil))
+            (flywrite--make-suggestion-diagnostic buf beg region-text suggestion hash)))
+        ;; Report to flymake and mark checked
+        (flywrite--report-to-flymake hash)
+        (puthash hash t flywrite--checked-sentences))
+    (error
+     (flywrite--log "LLM returned unparseable response: %s hash=%s\nRaw text: %s"
+                    (error-message-string parse-err) hash text)
+     (message "flywrite: LLM returned invalid JSON (not a bug in flywrite). Enable `flywrite-debug' and check *flywrite-log* for details."))))
+
+(defun flywrite--make-suggestion-diagnostic (buf beg region-text suggestion hash)
+  "Create a diagnostic from SUGGESTION and add it to `flywrite--diagnostics'.
+BUF is the source buffer, BEG is the region start, REGION-TEXT is
+the region content.  HASH is for logging."
+  (let* ((quote-str (alist-get 'quote suggestion))
+         (reason (alist-get 'reason suggestion))
+         (match-pos (and quote-str
+                         (string-match (regexp-quote quote-str) region-text))))
+    (if match-pos
+        (let ((diag-beg (+ beg match-pos))
+              (diag-end (+ beg match-pos (length quote-str))))
+          (push (flymake-make-diagnostic
+                 buf diag-beg diag-end :note
+                 (concat reason " [flywrite]"))
+                flywrite--diagnostics)
+          (flywrite--log "Diagnostic: [%d-%d] %s hash=%s"
+                         diag-beg diag-end reason hash))
+      (flywrite--log "Quote not found, skipping: %s hash=%s" quote-str hash))))
+
+(defun flywrite--report-to-flymake (hash)
+  "Report `flywrite--diagnostics' to flymake.  HASH is for logging."
+  (if flywrite--report-fn
+      (funcall flywrite--report-fn flywrite--diagnostics)
+    (flywrite--log "Warning: report-fn nil, diag-fns=%s hash=%s"
+                   flymake-diagnostic-functions hash)
+    (unless (memq #'flywrite-flymake flymake-diagnostic-functions)
+      (flywrite--log "Re-adding flywrite-flymake backend hash=%s" hash)
+      (add-hook 'flymake-diagnostic-functions #'flywrite-flymake nil t))
+    (when (bound-and-true-p flymake-mode)
+      (flymake-start))))
+
 ;;;; ---- Response handler ----
+
+(defun flywrite--process-response (status buf beg end hash latency)
+  "Process a non-duplicate API response in the response buffer.
+STATUS is from `url-retrieve'.  BUF, BEG, END, HASH identify the
+request.  LATENCY is the elapsed time in seconds.
+Called with the response buffer current.  May signal on errors."
+  (flywrite--check-http-error status buf latency hash)
+  (cl-destructuring-bind (http-status json-data text)
+      (flywrite--extract-response-text)
+    (flywrite--log "Response: HTTP %s %.2fs hash=%s JSON=%S"
+                   (or http-status "?") latency hash json-data)
+    (unless text
+      (flywrite--log "Response had no extractable text, skipping hash=%s json=%S"
+                     hash json-data))
+    (when (and text (buffer-live-p buf))
+      (with-current-buffer buf
+        (unless (flywrite--handle-stale-response beg end hash)
+          (flywrite--apply-suggestions buf beg end hash text))))))
 
 (defun flywrite--handle-response (status buf beg end hash start-time)
   "Handle API response.
 STATUS is from `url-retrieve'.  BUF, BEG, END, HASH identify the
 request.  START-TIME is used for latency logging."
   (let ((latency (float-time (time-subtract (current-time) start-time)))
-        (response-buf (current-buffer))
-        (duplicate nil))
-    ;; Guard against duplicate callbacks (url-retrieve can fire twice
-    ;; on connection errors: once for "failed", once for "deleted").
-    ;; Use a buffer-local flag on the response buffer.
-    (when (buffer-live-p response-buf)
-      (with-current-buffer response-buf
-        (if (bound-and-true-p flywrite--response-handled)
-            (progn
-              (flywrite--log "Ignoring duplicate callback for hash=%s"
-                             hash)
-              (setq duplicate t))
-          (setq-local flywrite--response-handled t))))
-    (if duplicate
+        (response-buf (current-buffer)))
+    (if (flywrite--duplicate-callback-p response-buf hash)
         (when (buffer-live-p response-buf)
           (kill-buffer response-buf))
-    ;; Remove from connection tracking
-    (when (buffer-live-p buf)
-      (with-current-buffer buf
-        (setq flywrite--connection-buffers
-              (delq response-buf flywrite--connection-buffers))))
-    (unwind-protect
-        (condition-case err
-            (progn
-              ;; Check for HTTP errors
-              (when (plist-get status :error)
-                (let* ((err-info (plist-get status :error))
-                       (err-body (save-excursion
-                                   (goto-char (point-min))
-                                   (when (re-search-forward "\r?\n\r?\n" nil t)
-                                     (truncate-string-to-width
-                                      (buffer-substring-no-properties (point) (point-max))
-                                      500 nil nil t)))))
-                  (flywrite--log "API HTTP error: %s (%.2fs) hash=%s\nResponse body: %s"
-                                 err-info latency hash (or err-body "<empty>"))
-                  ;; On 429, also clear pending queue to stop hammering
-                  (when (and (listp err-info)
-                             (member 429 err-info))
-                    (flywrite--log "Rate limited (429) hash=%s"
-                                   hash)
-                    (when (buffer-live-p buf)
-                      (with-current-buffer buf
-                        (when flywrite--pending-queue
-                          (flywrite--log "Clearing %d queued requests due to rate limit hash=%s"
-                                         (length flywrite--pending-queue) hash)
-                          (setq flywrite--pending-queue nil)))))
-                  (error "API request failed: %s" err-info)))
-
-              ;; Extract HTTP status code and skip headers
-              (goto-char (point-min))
-              (let ((http-status (when (looking-at "HTTP/[0-9.]+ \\([0-9]+\\)")
-                                   (match-string 1))))
-              (unless (re-search-forward "\r?\n\r?\n" nil t)
-                (error "Malformed HTTP response"))
-
-              ;; Parse JSON body (json-read returns alists with symbol keys)
-              ;; Anthropic: {content: [{type:"text", text:"..."}]}
-              ;; OpenAI:    {choices: [{message: {content: "..."}}]}
-              (let* ((json-data (json-read))
-                     (text (if (flywrite--anthropic-api-p)
-                               (let* ((content (alist-get 'content json-data))
-                                      (text-block (and (arrayp content)
-                                                       (> (length content) 0)
-                                                       (aref content 0))))
-                                 (and text-block (alist-get 'text text-block)))
-                             (let* ((choices (alist-get 'choices json-data))
-                                    (choice (and (arrayp choices)
-                                                 (> (length choices) 0)
-                                                 (aref choices 0)))
-                                    (message (and choice (alist-get 'message choice))))
-                               (and message (alist-get 'content message))))))
-
-                (flywrite--log "Response: HTTP %s %.2fs hash=%s JSON=%S"
-                               (or http-status "?") latency hash json-data)
-
-                (unless text
-                  (flywrite--log "Response had no extractable text, skipping hash=%s json=%S"
-                                 hash json-data))
-                (when (and text (buffer-live-p buf))
-                  (with-current-buffer buf
-                    ;; Stale check: verify the sentence hasn't changed
-                    (if (or (> end (point-max))
-                            (< beg (point-min))
-                            (not (string= hash (flywrite--content-hash beg end))))
-                        (progn
-                          (flywrite--log "Stale response discarded: [%d-%d] hash=%s" beg end hash)
-                          ;; Remove stale hash so updated content can be checked
-                          (remhash hash flywrite--checked-sentences)
-                          ;; Re-dirty so it gets re-checked
-                          (let ((new-hash (when (and (<= beg (point-max))
-                                                     (<= end (point-max)))
-                                            (flywrite--content-hash beg end))))
-                            (when (and new-hash (not (gethash new-hash flywrite--checked-sentences)))
-                              (push (list beg end new-hash) flywrite--dirty-registry))))
-
-                      ;; Parse suggestions (strip markdown code fences if present)
-                      (condition-case parse-err
-                          (let* ((clean-text (replace-regexp-in-string
-                                              "\\`[ \t\n]*```\\(?:json\\)?[ \t]*\n?" ""
-                                              (replace-regexp-in-string
-                                               "\n?```[ \t\n]*\\'" "" text)))
-                                 (parsed (json-read-from-string clean-text))
-                                 (suggestions (alist-get 'suggestions parsed)))
-                            (flywrite--log "Suggestions: %d for [%d-%d] hash=%s"
-                                           (length suggestions) beg end hash)
-                            ;; Remove old diagnostics for this region
-                            (setq flywrite--diagnostics
-                                  (cl-remove-if
-                                   (lambda (diag)
-                                     (and (>= (flymake-diagnostic-beg diag) beg)
-                                          (<= (flymake-diagnostic-end diag) end)))
-                                   flywrite--diagnostics))
-                            ;; Add new diagnostics
-                            (dolist (suggestion (append suggestions nil))
-                              (let* ((quote-str (alist-get 'quote suggestion))
-                                     (reason (alist-get 'reason suggestion))
-                                     (region-text (buffer-substring-no-properties beg end))
-                                     (match-pos (and quote-str
-                                                     (string-match (regexp-quote quote-str)
-                                                                   region-text))))
-                                (if match-pos
-                                    (let ((diag-beg (+ beg match-pos))
-                                          (diag-end (+ beg match-pos (length quote-str))))
-                                      (push (flymake-make-diagnostic
-                                             buf diag-beg diag-end :note
-                                             (concat reason " [flywrite]"))
-                                            flywrite--diagnostics)
-                                      (flywrite--log "Diagnostic: [%d-%d] %s hash=%s"
-                                                     diag-beg diag-end reason hash))
-                                  (flywrite--log "Quote not found, skipping: %s hash=%s" quote-str hash))))
-                            ;; Report all diagnostics to flymake
-                            (if flywrite--report-fn
-                                (funcall flywrite--report-fn flywrite--diagnostics)
-                              (flywrite--log "Warning: report-fn nil, diag-fns=%s hash=%s"
-                                             flymake-diagnostic-functions hash)
-                              ;; Re-add backend if something removed it
-                              (unless (memq #'flywrite-flymake
-                                            flymake-diagnostic-functions)
-                                (flywrite--log "Re-adding flywrite-flymake backend hash=%s" hash)
-                                (add-hook 'flymake-diagnostic-functions
-                                          #'flywrite-flymake nil t))
-                              (when (bound-and-true-p flymake-mode)
-                                (flymake-start)))
-                            ;; Mark as checked
-                            (puthash hash t flywrite--checked-sentences))
-                        (error
-                         (flywrite--log "LLM returned unparseable response: %s hash=%s\nRaw text: %s"
-                                        (error-message-string parse-err) hash text)
-                         (message "flywrite: LLM returned invalid JSON (not a bug in flywrite). Enable `flywrite-debug' and check *flywrite-log* for details.")))))))))
-          (error
-           (flywrite--log "Response handler error: %s hash=%s" (error-message-string err) hash)
-           (message "flywrite: API error: %s" (error-message-string err))
-           ;; Keep hash in checked-sentences to prevent automatic retry.
-           ;; User can use flywrite-clear or flywrite-check-at-point to
-           ;; force a recheck after fixing connectivity / rate limits.
-           ))
-
-      ;; Always: decrement counter and drain queue
+      ;; Remove from connection tracking
       (when (buffer-live-p buf)
         (with-current-buffer buf
-          (cl-decf flywrite--in-flight)
-          (when (< flywrite--in-flight 0)
-            (setq flywrite--in-flight 0))
-          (flywrite--drain-queue)))
-      ;; Clean up response buffer
-      (kill-buffer response-buf)))))
+          (setq flywrite--connection-buffers
+                (delq response-buf flywrite--connection-buffers))))
+      (unwind-protect
+          (condition-case err
+              (flywrite--process-response status buf beg end hash latency)
+            (error
+             (flywrite--log "Response handler error: %s hash=%s"
+                            (error-message-string err) hash)
+             (message "flywrite: API error: %s" (error-message-string err))))
+        ;; Always: decrement counter and drain queue
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (cl-decf flywrite--in-flight)
+            (when (< flywrite--in-flight 0)
+              (setq flywrite--in-flight 0))
+            (flywrite--drain-queue)))
+        ;; Clean up response buffer
+        (kill-buffer response-buf)))))
 
 ;;;; ---- Idle timer callback ----
 

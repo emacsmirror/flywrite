@@ -161,7 +161,11 @@ without needing to edit."
   "The flymake report function, stored when the backend is invoked.")
 
 (defvar-local flywrite--diagnostics nil
-  "Accumulated list of flymake diagnostics for this buffer.")
+  "List of active flymake diagnostics.")
+
+(defvar-local flywrite--region-hashes (make-hash-table :test 'equal)
+  "Map from \"beg-end\" region key to the last-known content hash.
+Used by `after-change' to find and remove stale checked-sentence entries.")
 
 ;;;; ---- Constants ----
 
@@ -340,6 +344,32 @@ BEG and END are the changed region boundaries."
             (let* ((ubeg (car bounds))
                    (uend (cdr bounds))
                    (hash (flywrite--content-hash ubeg uend)))
+              ;; Remove diagnostics overlapping this unit so underlines
+              ;; disappear immediately on edit
+              (when flywrite--diagnostics
+                (let ((old-count (length flywrite--diagnostics)))
+                  (setq flywrite--diagnostics
+                        (cl-remove-if
+                         (lambda (diag)
+                           (and (>= (flymake-diagnostic-beg diag) ubeg)
+                                (<= (flymake-diagnostic-end diag) uend)))
+                         flywrite--diagnostics))
+                  (when (and (/= old-count (length flywrite--diagnostics))
+                             flywrite--report-fn)
+                    (funcall flywrite--report-fn flywrite--diagnostics))))
+              ;; Remove old hash for this region so it gets re-checked
+              (let* ((region-key (format "%d-%d" ubeg uend))
+                     (old-hash (gethash region-key flywrite--region-hashes)))
+                (when (and old-hash (not (string= old-hash hash)))
+                  (remhash old-hash flywrite--checked-sentences))
+                (puthash region-key hash flywrite--region-hashes))
+              ;; Remove stale pending queue entries for this region
+              (setq flywrite--pending-queue
+                    (cl-remove-if (lambda (entry)
+                                    (and (eq (nth 0 entry) (current-buffer))
+                                         (<= (nth 1 entry) uend)
+                                         (>= (nth 2 entry) ubeg)))
+                                  flywrite--pending-queue))
               ;; Skip if already checked with same hash
               (unless (gethash hash flywrite--checked-sentences)
                 ;; Remove any existing dirty entry for overlapping region
@@ -891,6 +921,7 @@ Respects `flywrite-granularity'."
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
   (clrhash flywrite--checked-sentences)
+  (clrhash flywrite--region-hashes)
   (when flywrite--report-fn
     (funcall flywrite--report-fn nil))
   (when (bound-and-true-p flymake-mode)
@@ -928,6 +959,7 @@ Eglot replaces the buffer-local value with only its own backend."
   ;; Initialize buffer-local state
   (setq flywrite--dirty-registry nil)
   (setq flywrite--checked-sentences (make-hash-table :test 'equal))
+  (setq flywrite--region-hashes (make-hash-table :test 'equal))
   (setq flywrite--in-flight 0)
   (setq flywrite--pending-queue nil)
   (setq flywrite--connection-buffers nil)

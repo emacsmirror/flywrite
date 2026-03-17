@@ -821,6 +821,9 @@
                   ,(json-encode '((suggestions . [])))
                   ))))]))))
 
+        ;; Fire idle timer to dispatch re-check of edited sentence
+        (flywrite--idle-timer-fn (current-buffer))
+
         ;; --- Step 6: Verify diagnostic was removed and API was called again ---
         (should (= api-call-count 2))
         (should (= (length flywrite--diagnostics) 0)))

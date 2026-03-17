@@ -21,8 +21,7 @@ Configure (Emacs 30+).
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
   (setq flywrite-api-key-file "~/.flywrite-api-key")
-  (setq flywrite-system-prompt 'academic)  ; 'prose, 'academic, or custom string
-  (setq flywrite-debug t))  ; log to *flywrite-log*, recommended for beta
+  (setq flywrite-system-prompt 'academic))  ; 'prose, 'academic, or custom string
 
 (use-package flymake-popon
   :hook (flymake-mode . flymake-popon-mode)
@@ -30,7 +29,7 @@ Configure (Emacs 30+).
 ```
 
 <details>
-<summary>Manual install (Emacs 27+)</summary>
+<summary>Manual install (Emacs 27–29)</summary>
 
 Clone.
 ```bash
@@ -45,8 +44,7 @@ Configure.
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
   (setq flywrite-api-key-file "~/.flywrite-api-key")
-  (setq flywrite-system-prompt 'academic)  ; 'prose, 'academic, or custom string
-  (setq flywrite-debug t))  ; log to *flywrite-log*, recommended for beta
+  (setq flywrite-system-prompt 'academic))  ; 'prose, 'academic, or custom string
 
 (use-package flymake-popon
   :ensure t
@@ -164,7 +162,7 @@ Settings with defaults.
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
 (setq flywrite-system-prompt 'academic)            ; 'prose, 'academic, or custom string
 (setq flywrite-eager t)                            ; eagerly check around point
-(setq flywrite-debug t)                            ; log to *flywrite-log*
+(setq flywrite-debug t)                            ; log to *flywrite-log* (on by default)
 (setq flywrite-test-on-load t)                     ; connection test on enable
 ```
 

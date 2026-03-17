@@ -124,7 +124,7 @@ without needing to edit."
   :type 'boolean
   :group 'flywrite)
 
-(defcustom flywrite-debug nil
+(defcustom flywrite-debug t
   "When non-nil, log API calls, responses, and events to `*flywrite-log*'."
   :type 'boolean
   :group 'flywrite)

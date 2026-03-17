@@ -742,4 +742,30 @@
         (should (string-match-p "API key is not set" last-msg))
         (flywrite-mode -1)))))
 
+;;;; ---- System prompt resolution ----
+
+(ert-deftest flywrite-test-prompt-default-symbol ()
+  "Symbol `default' resolves to the default prompt string."
+  (let ((flywrite-system-prompt 'default))
+    (should (string= (flywrite--get-system-prompt) flywrite--default-prompt))))
+
+(ert-deftest flywrite-test-prompt-academic-symbol ()
+  "Symbol `academic' resolves to a string with academic-specific rules."
+  (let ((flywrite-system-prompt 'academic))
+    (let ((prompt (flywrite--get-system-prompt)))
+      (should (stringp prompt))
+      (should (string-match-p "informal language" prompt))
+      (should (string-match-p "nominalizations" prompt))
+      (should (string-match-p "weasel words" prompt)))))
+
+(ert-deftest flywrite-test-prompt-custom-string ()
+  "A custom string passes through unchanged."
+  (let ((flywrite-system-prompt "my custom prompt"))
+    (should (string= (flywrite--get-system-prompt) "my custom prompt"))))
+
+(ert-deftest flywrite-test-prompt-unknown-symbol-errors ()
+  "An unknown symbol signals an error."
+  (let ((flywrite-system-prompt 'nonexistent))
+    (should-error (flywrite--get-system-prompt) :type 'error)))
+
 ;;; test-flywrite.el ends here

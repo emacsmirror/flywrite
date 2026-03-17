@@ -174,7 +174,7 @@ configure it.  See the README for details."
                  (string :tag "URL"))
   :group 'flywrite)
 
-(defcustom flywrite-system-prompt
+(defconst flywrite--default-prompt
   "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
@@ -190,13 +190,68 @@ Rules:
 - One entry per distinct issue
 - Do not flag correct sentences
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content"
+  "Default system prompt for general writing feedback.")
+
+(defconst flywrite--academic-prompt
+  "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
+Return JSON only. No text outside the JSON.
+
+If the sentence is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\", \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct sentences
+- Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content
+- Flag informal language, contractions, and colloquialisms
+- Flag vague hedging (e.g., 'a lot', 'things', 'stuff', 'really')
+- Flag first person when it weakens objectivity (e.g., 'I think', 'we feel')
+- Flag unsupported superlatives (e.g., 'the best', 'the most important')
+- Flag wordiness and nominalizations (e.g., 'make an adjustment' -> 'adjust')
+- Flag subjective qualifiers (e.g., 'obviously', 'clearly', 'of course')
+- Flag ambiguous 'this/it/they' pronouns without antecedents (e.g., 'This is important' -- this what?)
+- Flag weasel words (e.g., 'significantly' without statistical context, 'often', 'usually' without citation)
+- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus') -- prefer 'Therefore', 'Additionally', 'Moreover'"
+  "System prompt for academic writing feedback.")
+
+(defconst flywrite--prompt-alist
+  `((default . ,flywrite--default-prompt)
+    (academic . ,flywrite--academic-prompt))
+  "Alist mapping prompt style symbols to prompt strings.")
+
+(defcustom flywrite-system-prompt 'default
   "System prompt sent with every API call.
+Can be a symbol selecting a built-in prompt style or a custom
+string.  Built-in styles: `default' (general writing feedback)
+and `academic' (adds rules for formal academic writing).
+
 The prompt must instruct the model to return JSON with a
 \"suggestions\" array.  Each element needs \"quote\" and \"reason\"
 keys.  Customize this to change tone, strictness, or focus areas
 while preserving the JSON output format."
-  :type 'string
+  :type '(choice (const :tag "Default" default)
+                 (const :tag "Academic" academic)
+                 (string :tag "Custom prompt"))
   :group 'flywrite)
+
+(defun flywrite--get-system-prompt ()
+  "Return the system prompt string.
+If `flywrite-system-prompt' is a string, return it as-is.
+If it is a symbol, look it up in `flywrite--prompt-alist'."
+  (cond
+   ((stringp flywrite-system-prompt) flywrite-system-prompt)
+   ((symbolp flywrite-system-prompt)
+    (let ((entry (assq flywrite-system-prompt flywrite--prompt-alist)))
+      (unless entry
+        (error "Unknown flywrite-system-prompt style: %s" flywrite-system-prompt))
+      (cdr entry)))
+   (t (error "flywrite-system-prompt must be a symbol or string, got: %S"
+             flywrite-system-prompt))))
 
 ;;;; ---- Logging ----
 
@@ -352,11 +407,12 @@ Shows status in the minibuffer.  On failure, suggests enabling
                           (string-match-p "\\(?:localhost\\|127\\.0\\.0\\.1\\)" flywrite-api-url)))
              (_ (when (and (not api-key) (not local-p))
                   (error "API key is not set.  See the README for configuration")))
+             (prompt (flywrite--get-system-prompt))
              (system-msg (if (and anthropic-p flywrite-enable-caching)
                              `[((type . "text")
-                                (text . ,flywrite-system-prompt)
+                                (text . ,prompt)
                                 (cache_control . ((type . "ephemeral"))))]
-                           flywrite-system-prompt))
+                           prompt))
              (payload (json-encode
                        (if anthropic-p
                            `((model . ,flywrite-model)
@@ -367,7 +423,7 @@ Shows status in the minibuffer.  On failure, suggests enabling
                          `((model . ,flywrite-model)
                            (max_tokens . 300)
                            (messages . [((role . "system")
-                                         (content . ,flywrite-system-prompt))
+                                         (content . ,prompt))
                                         ((role . "user")
                                          (content . ,text))])))))
              (url-request-method "POST")
@@ -426,11 +482,12 @@ HASH is the content hash at time of dispatch for stale checking."
                     (buffer-substring-no-properties beg end)))
            (api-key (flywrite--get-api-key))
          (anthropic-p (flywrite--anthropic-api-p))
+         (prompt (flywrite--get-system-prompt))
          (system-msg (if (and anthropic-p flywrite-enable-caching)
                          `[((type . "text")
-                            (text . ,flywrite-system-prompt)
+                            (text . ,prompt)
                             (cache_control . ((type . "ephemeral"))))]
-                       flywrite-system-prompt))
+                       prompt))
          (payload (json-encode
                    (if anthropic-p
                        `((model . ,flywrite-model)
@@ -441,7 +498,7 @@ HASH is the content hash at time of dispatch for stale checking."
                      `((model . ,flywrite-model)
                        (max_tokens . 300)
                        (messages . [((role . "system")
-                                     (content . ,flywrite-system-prompt))
+                                     (content . ,prompt))
                                     ((role . "user")
                                      (content . ,text))])))))
          (url-request-method "POST")

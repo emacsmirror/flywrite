@@ -21,6 +21,7 @@ Configure (Emacs 30+).
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
   (setq flywrite-api-key-file "~/.flywrite-api-key")
+  (setq flywrite-system-prompt 'default)  ; 'default, 'academic, or custom string
   (setq flywrite-debug t))  ; log to *flywrite-log*, recommended for beta
 
 (use-package flymake-popon
@@ -43,7 +44,9 @@ Configure.
   :commands (flywrite-mode)
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
-  (setq flywrite-api-key-file "~/.flywrite-api-key"))
+  (setq flywrite-api-key-file "~/.flywrite-api-key")
+  (setq flywrite-system-prompt 'default)  ; 'default, 'academic, or custom string
+  (setq flywrite-debug t))  ; log to *flywrite-log*, recommended for beta
 
 (use-package flymake-popon
   :ensure t
@@ -104,10 +107,10 @@ Anthropic endpoints are auto-detected (by hostname) and use the `x-api-key` head
 Settings with defaults.
 
 ```elisp
-(setq flywrite-model "claude-sonnet-4-20250514")   ; model
 (setq flywrite-idle-delay 1.5)                     ; seconds before checking
 (setq flywrite-max-concurrent 3)                   ; max parallel API calls
 (setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
+(setq flywrite-system-prompt 'default)             ; 'default, 'academic, or custom string
 (setq flywrite-eager t)                            ; eagerly check around point
 (setq flywrite-debug t)                            ; log to *flywrite-log*
 (setq flywrite-test-on-load t)                     ; connection test on enable
@@ -115,8 +118,19 @@ Settings with defaults.
 ```
 
 ### System prompt
-Customize `flywrite-system-prompt` to change tone, strictness, or focus areas. The prompt must instruct the model to return JSON with a `suggestions` array where each element has `quote` and `reason` keys. The default is:
+`flywrite-system-prompt` controls the instructions sent with every API call. It accepts a symbol selecting a built-in style or a custom string. Built-in styles:
 
+| Symbol | Description |
+|--------|-------------|
+| `default` | General grammar, clarity, and style feedback (the default) |
+| `academic` | Everything in `default` plus rules for formal academic writing (see below) |
+
+Select a built-in style:
+```elisp
+(setq flywrite-system-prompt 'academic)
+```
+
+Or provide a custom string. The prompt must instruct the model to return JSON with a `suggestions` array where each element has `quote` and `reason` keys:
 ```elisp
 (setq flywrite-system-prompt
   "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
@@ -136,11 +150,7 @@ Rules:
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content")
 ```
 
-### Academic writing
-
-The default system prompt covers general grammar, clarity, and style. You can tailor flywrite to specific writing contexts by customizing the prompt. Remember to keep the JSON format instructions intact.
-
-**Academic writing** suggested additions
+The `academic` style adds these rules to the default prompt:
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging (e.g., 'a lot', 'things', 'stuff', 'really')
 - Flag first person when it weakens objectivity (e.g., 'I think', 'we feel')

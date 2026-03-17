@@ -536,4 +536,102 @@
     (should-not flywrite-mode)
     (should-not flywrite--idle-timer)))
 
+;;;; ---- Connection cleanup on disable ----
+
+(ert-deftest flywrite-test-disable-kills-connection-buffers ()
+  "Disabling the mode kills tracked connection buffers."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    ;; Simulate tracked connection buffers
+    (let ((fake-conn1 (generate-new-buffer " *test-conn1*"))
+          (fake-conn2 (generate-new-buffer " *test-conn2*")))
+      (setq flywrite--connection-buffers (list fake-conn1 fake-conn2))
+      (flywrite-mode -1)
+      (should-not (buffer-live-p fake-conn1))
+      (should-not (buffer-live-p fake-conn2))
+      (should-not flywrite--connection-buffers))))
+
+(ert-deftest flywrite-test-disable-handles-dead-connection-buffers ()
+  "Disabling the mode handles already-dead connection buffers gracefully."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (let ((fake-conn (generate-new-buffer " *test-conn*")))
+      (kill-buffer fake-conn)
+      (setq flywrite--connection-buffers (list fake-conn))
+      ;; Should not error
+      (flywrite-mode -1)
+      (should-not flywrite--connection-buffers))))
+
+(ert-deftest flywrite-test-connection-buffers-initialized ()
+  "Connection buffers list is initialized on enable."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (should-not flywrite--connection-buffers)
+    (flywrite-mode -1)))
+
+;;;; ---- 429 rate limit handling ----
+
+(ert-deftest flywrite-test-429-keeps-hash-checked ()
+  "A 429 error keeps the hash in checked-sentences to prevent retry."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Test sentence.")
+    (let* ((hash (flywrite--content-hash 1 (point-max)))
+           (buf (current-buffer))
+           (status `(:error (error http 429))))
+      (puthash hash t flywrite--checked-sentences)
+      (setq flywrite--in-flight 1)
+      ;; Create a fake response buffer for the handler
+      (with-temp-buffer
+        (insert "HTTP/1.1 429 Too Many Requests\r\n\r\n{}")
+        (goto-char (point-min))
+        (flywrite--handle-response status buf 1 15 hash (current-time)))
+      ;; Hash should still be checked (not removed)
+      (should (gethash hash flywrite--checked-sentences)))
+    (flywrite-mode -1)))
+
+(ert-deftest flywrite-test-429-clears-pending-queue ()
+  "A 429 error clears the pending queue to stop hammering the API."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Test sentence.")
+    (let* ((hash (flywrite--content-hash 1 (point-max)))
+           (buf (current-buffer))
+           (status `(:error (error http 429))))
+      (puthash hash t flywrite--checked-sentences)
+      (setq flywrite--in-flight 1)
+      (setq flywrite--pending-queue
+            (list (list buf 1 15 "fakehash1")
+                  (list buf 1 15 "fakehash2")))
+      (with-temp-buffer
+        (insert "HTTP/1.1 429 Too Many Requests\r\n\r\n{}")
+        (goto-char (point-min))
+        (flywrite--handle-response status buf 1 15 hash (current-time)))
+      (should-not flywrite--pending-queue))
+    (flywrite-mode -1)))
+
+(ert-deftest flywrite-test-non-429-error-removes-hash ()
+  "A non-429 error removes the hash so the sentence can be retried."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Test sentence.")
+    (let* ((hash (flywrite--content-hash 1 (point-max)))
+           (buf (current-buffer))
+           (status `(:error (error http 500))))
+      (puthash hash t flywrite--checked-sentences)
+      (setq flywrite--in-flight 1)
+      (with-temp-buffer
+        (insert "HTTP/1.1 500 Internal Server Error\r\n\r\n{}")
+        (goto-char (point-min))
+        (flywrite--handle-response status buf 1 15 hash (current-time)))
+      ;; Hash should be removed so it can be retried
+      (should-not (gethash hash flywrite--checked-sentences)))
+    (flywrite-mode -1)))
+
 ;;; test-flywrite.el ends here

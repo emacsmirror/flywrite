@@ -134,6 +134,9 @@ without needing to edit."
 (defvar-local flywrite--pending-queue nil
   "FIFO list of (buf beg end hash) entries waiting for an API slot.")
 
+(defvar-local flywrite--connection-buffers nil
+  "List of active `url-retrieve' response buffers for cleanup.")
+
 (defvar-local flywrite--idle-timer nil
   "The idle timer object for this buffer.")
 
@@ -364,11 +367,15 @@ HASH is the content hash at time of dispatch for stale checking."
       (cl-incf flywrite--in-flight)
       ;; Mark as checked now to prevent duplicate in-flight requests
       (puthash hash t flywrite--checked-sentences))
-    (url-retrieve
-     flywrite-api-url
-     (lambda (status)
-       (flywrite--handle-response status buf beg end hash start-time))
-     nil t t))))
+    (let ((conn-buf
+           (url-retrieve
+            flywrite-api-url
+            (lambda (status)
+              (flywrite--handle-response status buf beg end hash start-time))
+            nil t t)))
+      (when (and conn-buf (buffer-live-p conn-buf))
+        (with-current-buffer buf
+          (push conn-buf flywrite--connection-buffers)))))))
 
 ;;;; ---- Response handler ----
 
@@ -378,13 +385,31 @@ STATUS is from `url-retrieve'.  BUF, BEG, END, HASH identify the
 request.  START-TIME is used for latency logging."
   (let ((latency (float-time (time-subtract (current-time) start-time)))
         (response-buf (current-buffer)))
+    ;; Remove from connection tracking
+    (when (buffer-live-p buf)
+      (with-current-buffer buf
+        (setq flywrite--connection-buffers
+              (delq response-buf flywrite--connection-buffers))))
     (unwind-protect
         (condition-case err
             (progn
               ;; Check for HTTP errors
               (when (plist-get status :error)
-                (flywrite--log "API HTTP error: %s (%.2fs)" (plist-get status :error) latency)
-                (error "API request failed: %s" (plist-get status :error)))
+                (let ((err-info (plist-get status :error)))
+                  (flywrite--log "API HTTP error: %s (%.2fs)" err-info latency)
+                  ;; On 429, keep hash as checked to prevent retry storm
+                  (when (and (listp err-info)
+                             (member 429 err-info))
+                    (flywrite--log "Rate limited (429), will not retry hash=%s"
+                                   (substring hash 0 8))
+                    ;; Clear the pending queue to stop hammering the API
+                    (when (buffer-live-p buf)
+                      (with-current-buffer buf
+                        (when flywrite--pending-queue
+                          (flywrite--log "Clearing %d queued requests due to rate limit"
+                                         (length flywrite--pending-queue))
+                          (setq flywrite--pending-queue nil)))))
+                  (error "API request failed: %s" err-info)))
 
               ;; Skip HTTP headers
               (goto-char (point-min))
@@ -484,10 +509,14 @@ request.  START-TIME is used for latency logging."
           (error
            (flywrite--log "Response handler error: %s" (error-message-string err))
            (message "flywrite: API error: %s" (error-message-string err))
-           ;; Remove hash from checked so this sentence can be retried
+           ;; Remove hash from checked so this sentence can be retried,
+           ;; UNLESS it was a 429 (rate limit) — keep it checked to avoid retry storm
            (when (buffer-live-p buf)
              (with-current-buffer buf
-               (remhash hash flywrite--checked-sentences)))))
+               (let ((err-info (plist-get status :error)))
+                 (unless (and (listp err-info)
+                              (member 429 err-info))
+                   (remhash hash flywrite--checked-sentences)))))))
 
       ;; Always: decrement counter and drain queue
       (when (buffer-live-p buf)
@@ -720,6 +749,7 @@ Eglot replaces the buffer-local value with only its own backend."
   (setq flywrite--checked-sentences (make-hash-table :test 'equal))
   (setq flywrite--in-flight 0)
   (setq flywrite--pending-queue nil)
+  (setq flywrite--connection-buffers nil)
   (setq flywrite--diagnostics nil)
   (setq flywrite--report-fn nil)
 
@@ -749,6 +779,15 @@ Eglot replaces the buffer-local value with only its own backend."
   (when flywrite--idle-timer
     (cancel-timer flywrite--idle-timer)
     (setq flywrite--idle-timer nil))
+
+  ;; Kill in-flight HTTP connection buffers so network processes don't linger
+  (dolist (conn-buf flywrite--connection-buffers)
+    (when (buffer-live-p conn-buf)
+      (let ((proc (get-buffer-process conn-buf)))
+        (when proc
+          (delete-process proc)))
+      (kill-buffer conn-buf)))
+  (setq flywrite--connection-buffers nil)
 
   ;; Remove hooks
   (remove-hook 'after-change-functions #'flywrite--after-change t)

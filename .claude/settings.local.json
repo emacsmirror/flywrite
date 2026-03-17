@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(emacs:*)"
+      "Bash(emacs:*)",
+      "Bash(./test 2>&1)"
     ]
   }
 }

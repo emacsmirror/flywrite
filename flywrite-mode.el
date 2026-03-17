@@ -384,7 +384,22 @@ HASH is the content hash at time of dispatch for stale checking."
 STATUS is from `url-retrieve'.  BUF, BEG, END, HASH identify the
 request.  START-TIME is used for latency logging."
   (let ((latency (float-time (time-subtract (current-time) start-time)))
-        (response-buf (current-buffer)))
+        (response-buf (current-buffer))
+        (duplicate nil))
+    ;; Guard against duplicate callbacks (url-retrieve can fire twice
+    ;; on connection errors: once for "failed", once for "deleted").
+    ;; Use a buffer-local flag on the response buffer.
+    (when (buffer-live-p response-buf)
+      (with-current-buffer response-buf
+        (if (bound-and-true-p flywrite--response-handled)
+            (progn
+              (flywrite--log "Ignoring duplicate callback for hash=%s"
+                             (substring hash 0 8))
+              (setq duplicate t))
+          (setq-local flywrite--response-handled t))))
+    (if duplicate
+        (when (buffer-live-p response-buf)
+          (kill-buffer response-buf))
     ;; Remove from connection tracking
     (when (buffer-live-p buf)
       (with-current-buffer buf
@@ -397,12 +412,11 @@ request.  START-TIME is used for latency logging."
               (when (plist-get status :error)
                 (let ((err-info (plist-get status :error)))
                   (flywrite--log "API HTTP error: %s (%.2fs)" err-info latency)
-                  ;; On 429, keep hash as checked to prevent retry storm
+                  ;; On 429, also clear pending queue to stop hammering
                   (when (and (listp err-info)
                              (member 429 err-info))
-                    (flywrite--log "Rate limited (429), will not retry hash=%s"
+                    (flywrite--log "Rate limited (429) hash=%s"
                                    (substring hash 0 8))
-                    ;; Clear the pending queue to stop hammering the API
                     (when (buffer-live-p buf)
                       (with-current-buffer buf
                         (when flywrite--pending-queue
@@ -509,14 +523,10 @@ request.  START-TIME is used for latency logging."
           (error
            (flywrite--log "Response handler error: %s" (error-message-string err))
            (message "flywrite: API error: %s" (error-message-string err))
-           ;; Remove hash from checked so this sentence can be retried,
-           ;; UNLESS it was a 429 (rate limit) — keep it checked to avoid retry storm
-           (when (buffer-live-p buf)
-             (with-current-buffer buf
-               (let ((err-info (plist-get status :error)))
-                 (unless (and (listp err-info)
-                              (member 429 err-info))
-                   (remhash hash flywrite--checked-sentences)))))))
+           ;; Keep hash in checked-sentences to prevent automatic retry.
+           ;; User can use flywrite-clear or flywrite-check-at-point to
+           ;; force a recheck after fixing connectivity / rate limits.
+           ))
 
       ;; Always: decrement counter and drain queue
       (when (buffer-live-p buf)
@@ -526,7 +536,7 @@ request.  START-TIME is used for latency logging."
             (setq flywrite--in-flight 0))
           (flywrite--drain-queue)))
       ;; Clean up response buffer
-      (kill-buffer response-buf))))
+      (kill-buffer response-buf)))))
 
 ;;;; ---- Idle timer callback ----
 

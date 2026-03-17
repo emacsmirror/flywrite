@@ -615,8 +615,8 @@
       (should-not flywrite--pending-queue))
     (flywrite-mode -1)))
 
-(ert-deftest flywrite-test-non-429-error-removes-hash ()
-  "A non-429 error removes the hash so the sentence can be retried."
+(ert-deftest flywrite-test-non-429-error-keeps-hash ()
+  "Any error keeps the hash checked to prevent automatic retry."
   (with-temp-buffer
     (text-mode)
     (flywrite-mode 1)
@@ -630,8 +630,39 @@
         (insert "HTTP/1.1 500 Internal Server Error\r\n\r\n{}")
         (goto-char (point-min))
         (flywrite--handle-response status buf 1 15 hash (current-time)))
-      ;; Hash should be removed so it can be retried
-      (should-not (gethash hash flywrite--checked-sentences)))
+      ;; Hash stays checked — user can flywrite-clear to force recheck
+      (should (gethash hash flywrite--checked-sentences)))
+    (flywrite-mode -1)))
+
+;;;; ---- Duplicate callback guard ----
+
+(ert-deftest flywrite-test-duplicate-callback-ignored ()
+  "Second callback for the same request is ignored."
+  (with-temp-buffer
+    (text-mode)
+    (flywrite-mode 1)
+    (insert "Test sentence.")
+    (let* ((hash (flywrite--content-hash 1 (point-max)))
+           (buf (current-buffer))
+           (status `(:error (error connection-failed)))
+           (response-buf (generate-new-buffer " *test-response*")))
+      (puthash hash t flywrite--checked-sentences)
+      (setq flywrite--in-flight 1)
+      ;; First callback
+      (with-current-buffer response-buf
+        (insert "HTTP/1.1 500\r\n\r\n{}")
+        (goto-char (point-min))
+        (flywrite--handle-response status buf 1 15 hash (current-time)))
+      ;; in-flight should be 0 after first callback
+      (should (= flywrite--in-flight 0))
+      ;; Second callback on a new buffer (simulating url-retrieve behavior)
+      (let ((response-buf2 (generate-new-buffer " *test-response2*")))
+        (with-current-buffer response-buf2
+          ;; Mark as already handled (same flag the first callback sets)
+          (setq-local flywrite--response-handled t)
+          (flywrite--handle-response status buf 1 15 hash (current-time)))
+        ;; in-flight should still be 0, not -1
+        (should (= flywrite--in-flight 0))))
     (flywrite-mode -1)))
 
 ;;; test-flywrite.el ends here

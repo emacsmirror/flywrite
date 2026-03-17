@@ -55,11 +55,10 @@ Open a text file and save this content with intentional errors:
 
 > The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys. The weather was very extremely hot outside yesterday.
 
-Run `M-x flywrite-mode`.  By default, flywrite will check sentences around the point.  Responses may take a few seconds.  Move the point over one of the wavy underlines.
+Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run checks after a short idle delay.  API responses may take a few seconds.  Move the point over one of the wavy underlines.
 
 ![flywrite-mode screenshot](screenshot.png)
 
-Add text.  As you move or type, flywrite will automatically run checks after a short idle delay.
 
 ## Configuration
 

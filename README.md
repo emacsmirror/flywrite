@@ -66,42 +66,94 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 ## Configuration
 
 ### API providers
-Set `flywrite-api-url` to your provider's endpoint. Flywrite natively supports the Anthropic Messages API and the OpenAI Chat Completions API.
+Configure an API.  Flywrite natively supports the Anthropic Messages API and the OpenAI Chat Completions API, which includes Google Gemini and Ollama.
+
+**Security warning:** Restrict access to API key files.
+```console
+$ chmod 600 ~/.flywrite-api-key
+```
 
 **Anthropic**
-1. `(setq flywrite-api-url "https://api.anthropic.com/v1/messages")`
-2. `(setq flywrite-model "claude-sonnet-4-20250514")` — [model list](https://docs.anthropic.com/en/docs/about-claude/models)
-3. Get an API key at https://console.anthropic.com/settings/keys
-4. Add credits at https://platform.claude.com/settings/billing
+1. Get an API key at https://console.anthropic.com/settings/keys
+2. Add credits at https://platform.claude.com/settings/billing
+3. Select a [model](https://docs.anthropic.com/en/docs/about-claude/models)
+4. Configure
+   ```elisp
+   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
+   (setq flywrite-api-key-file "~/.flywrite-api-key")
+   (setq flywrite-model "claude-sonnet-4-20250514")
+   ```
 
 **OpenAI**
-1. `(setq flywrite-api-url "https://api.openai.com/v1/chat/completions")`
-2. `(setq flywrite-model "gpt-4o")` — [model list](https://platform.openai.com/docs/models)
-3. Get an API key at https://platform.openai.com/api-keys
-4. Add credits at https://platform.openai.com/settings/organization/billing/overview
+1. Get an API key at https://platform.openai.com/api-keys
+2. Add credits at https://platform.openai.com/settings/organization/billing/overview
+3. Select a [model](https://platform.openai.com/docs/models)
+4. Configure 
+   ```elisp
+   (setq flywrite-api-url "https://api.openai.com/v1/chat/completions")
+   (setq flywrite-api-key-file "~/.flywrite-api-key")
+   (setq flywrite-model "gpt-4o")
+   ```
 
-**Google Gemini** (OpenAI-compatible endpoint)
-1. `(setq flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")`
-2. `(setq flywrite-model "gemini-2.5-flash")` — [model list](https://ai.google.dev/gemini-api/docs/models)
-3. Get an API key at https://aistudio.google.com/apikey
-4. Add credits at https://aistudio.google.com/plan_billing
+**Google Gemini**
+1. Get an API key at https://aistudio.google.com/apikey
+2. Add credits at https://aistudio.google.com/plan_billing
+3. Select a [model](https://ai.google.dev/gemini-api/docs/models)
+4. Configure
+   ```elisp
+   (setq flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
+   (setq flywrite-api-key-file "~/.flywrite-api-key")
+   (setq flywrite-model "gemini-2.5-flash")
+   ```
 
-**Ollama** (local, no API key needed)
-1. Install Ollama from https://ollama.com and pull a model (e.g., `ollama pull llama3.2`)
-2. `(setq flywrite-api-url "http://localhost:11434/v1/chat/completions")`
-3. `(setq flywrite-model "llama3.2:3b")` — [model list](https://ollama.com/library), check local names with `ollama list`
+**Ollama**
+1. Install Ollama from https://ollama.com
+2. Select a [model](https://ollama.com/library) model and download it
+   ```console
+   $ ollama pull llama3.2:3b
+   $ ollama list
+   ```
+3. Run server
+   ```console
+   $ ollama serve
+   ```
+4. Configure
+   ```elisp
+   (setq flywrite-api-url "http://localhost:11434/v1/chat/completions")
+   ;; No key needed
+   (setq flywrite-model "llama3.2:3b")
+   ```
 
-Note: Smaller local models may struggle to consistently return valid JSON in the expected format, leading to "LLM returned invalid JSON" messages. Larger models (7B+) tend to be more reliable. Enable `flywrite-debug` and check `*flywrite-log*` to see raw responses.
+Note: Smaller models may not consistently return valid JSON in the expected format, leading to "LLM returned invalid JSON" messages. Larger models (7B+) tend to be more reliable. Enable `flywrite-debug` and check `*flywrite-log*` to see raw responses.
+
+**Any API provider**
+```elisp
+(setq flywrite-api-url "https://api.anthropic.com/v1/messages")
+(setq flywrite-api-key-file "~/.flywrite-api-key")
+(setq flywrite-api-headers '(("Custom-Header" . "value")))
+(setq flywrite-model "claude-sonnet-4-20250514")
+```
+
+`flywrite-api-headers` adds custom HTTP headers to every request, merged with the default Content-Type and authorization headers.
 
 ### API key
 Choose one method:
-1. Read from a file (recommended): `(setq flywrite-api-key-file "~/.flywrite-api-key")` — use `chmod 600` to restrict access
-2. Set directly: `(setq flywrite-api-key "sk-ant-...")`
-3. Use `FLYWRITE_API_KEY` environment variable (no config needed)
+1. Read from a file like `~/.flywrite-api-key` (recommended).  Use `chmod 600` to restrict access.
+   ```console
+   $ chmod 600 ~/.flywrite-api-key
+   ```
 
-Omit the API key if it's not needed, e.g., for Ollama.
+   ```elisp
+   (setq flywrite-api-key-file "~/.flywrite-api-key")
+   ```
+2. Set API key directly.
+   ```elisp
+   (setq flywrite-api-key "sk-ant-...")
+   ```
+3. Set the `FLYWRITE_API_KEY` environment variable.  No elisp configuration needed.
+4. Omit the API key if it's not needed, e.g., for Ollama.
 
-Anthropic endpoints are auto-detected (by hostname) and use the `x-api-key` header; all other providers use a `Bearer` token in the `Authorization` header. Local providers like Ollama work without an API key.  Custom headers are also supported with the `flywrite-api-headers` (see [Optional settings](#optional-settings)).
+Anthropic endpoints are auto-detected by hostname and use the `x-api-key` header; all other providers use a `Bearer` token in the `Authorization` header. Local providers like Ollama work without an API key.
 
 ### Optional settings
 Settings with defaults.
@@ -114,7 +166,6 @@ Settings with defaults.
 (setq flywrite-eager t)                            ; eagerly check around point
 (setq flywrite-debug t)                            ; log to *flywrite-log*
 (setq flywrite-test-on-load t)                     ; connection test on enable
-(setq flywrite-api-headers '(("Custom-Header" . "value")))  ; extra HTTP headers
 ```
 
 ### System prompt

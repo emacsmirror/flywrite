@@ -8,17 +8,33 @@ set -x
 # Run from project directory
 cd "$(dirname "$0")"
 
-# Lint
-output=$(
+# Run a command and fail if it produces any output on stdout.
+check_quiet() {
+  output=$("$@" 2>/dev/null)
+  if [ -n "$output" ]; then
+    echo "$output"
+    exit 1
+  fi
+}
+
+# Lint: checkdoc
+check_quiet \
   emacs \
     -Q --batch \
     --eval "(setq checkdoc-verb-check-experimental-flag nil)" \
     --eval "(checkdoc-file \"flywrite-mode.el\")" \
-    2>&1 )
-if [ -n "$output" ]; then
-  echo "$output"
-  exit 1
-fi
+    --eval "(when (get-buffer \"*Warnings*\")
+              (with-current-buffer \"*Warnings*\"
+                (princ (buffer-string))))"
+
+# Lint: elint
+check_quiet \
+  emacs \
+    -Q --batch \
+    --eval "(require 'elint)" \
+    --eval "(elint-file \"flywrite-mode.el\")" \
+    --eval "(with-current-buffer \"*Elint*\"
+              (princ (buffer-string)))"
 
 # Byte-compile check
 emacs -Q --batch -f batch-byte-compile flywrite-mode.el

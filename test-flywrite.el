@@ -742,6 +742,91 @@
         (should (string-match-p "API key is not set" last-msg))
         (flywrite-mode -1)))))
 
+;;;; ---- End-to-end: mock API ----
+
+(defun flywrite-test--make-response-buffer (json-body)
+  "Create a buffer mimicking an HTTP 200 response with JSON-BODY string."
+  (let ((buf (generate-new-buffer " *test-http-response*")))
+    (with-current-buffer buf
+      (insert "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+              json-body))
+    buf))
+
+(ert-deftest flywrite-test-e2e-mock-api ()
+  "End-to-end: insert error, check, verify diagnostic, fix, re-check, verify clear."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-test-on-load nil)
+         (flywrite-granularity 'sentence)
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         ;; Track calls to url-retrieve
+         (api-call-count 0)
+         ;; Response to return (swapped between calls)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      ;; --- Step 1: Insert a sentence with an error ---
+      (insert "Him went to the store.")
+
+      ;; Enable flywrite-mode (mocking url-retrieve to prevent real HTTP)
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     ;; Synchronously invoke the callback in the response buffer
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        ;; --- Step 2: Enable mode and trigger check ---
+        (flywrite-mode 1)
+
+        ;; Set mock response: one suggestion for "Him"
+        (setq mock-response-json
+              (json-encode
+               `((choices . [((message . ((content .
+                  ,(json-encode
+                    '((suggestions . [((quote . "Him")
+                                       (reason . "Use \"He\" (subject pronoun)"))])))
+                  ))))]))))
+
+        ;; Trigger check: dirty the sentence and fire the idle timer
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 3: Verify diagnostic was created ---
+        (should (= api-call-count 1))
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (= (flymake-diagnostic-beg diag) 1))
+          (should (= (flymake-diagnostic-end diag) 4))
+          (should (string-match-p "subject pronoun"
+                                  (flymake-diagnostic-text diag)))
+          (should (string-match-p "\\[flywrite\\]"
+                                  (flymake-diagnostic-text diag))))
+
+        ;; --- Step 4: Fix the error ---
+        (goto-char 1)
+        (delete-region 1 4)
+        (insert "He")
+
+        ;; --- Step 5: Set mock response: no suggestions ---
+        (setq mock-response-json
+              (json-encode
+               `((choices . [((message . ((content .
+                  ,(json-encode '((suggestions . [])))
+                  ))))]))))
+
+        ;; --- Step 6: Verify diagnostic was removed and API was called again ---
+        (should (= api-call-count 2))
+        (should (= (length flywrite--diagnostics) 0)))
+
+      (flywrite-mode -1))))
+
 ;;;; ---- System prompt resolution ----
 
 (ert-deftest flywrite-test-prompt-prose-symbol ()

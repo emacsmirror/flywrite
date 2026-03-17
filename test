@@ -8,6 +8,14 @@ set -x
 # Run from project directory
 cd "$(dirname "$0")"
 
+# Byte-compile check
+emacs \
+  -Q --batch \
+  --eval "(setq byte-compile-error-on-warn t)" \
+  -f batch-byte-compile \
+  flywrite-mode.el
+rm -f flywrite-mode.elc
+
 # Run a command and fail if it produces any output on stdout.
 check_quiet() {
   output=$("$@" 2>/dev/null)
@@ -36,9 +44,23 @@ check_quiet \
     --eval "(with-current-buffer \"*Elint*\"
               (princ (buffer-string)))"
 
-# Byte-compile check
-emacs -Q --batch -f batch-byte-compile flywrite-mode.el
-rm -f flywrite-mode.elc
+# Lint: elisp-lint (install from MELPA, disable checks run separately)
+emacs \
+  -Q --batch \
+  --eval "(require 'package)" \
+  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+  --eval "(package-initialize)" \
+  --eval "(unless (package-installed-p 'elisp-lint)
+            (package-refresh-contents)
+            (package-install 'elisp-lint))" \
+  --eval "(require 'elisp-lint)" \
+  -f elisp-lint-files-batch \
+  --no-checkdoc \
+  --no-byte-compile \
+  --no-indent \
+  --no-indent-character \
+  --no-fill-column \
+  flywrite-mode.el
 
 # Unit tests
 emacs \

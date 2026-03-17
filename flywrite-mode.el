@@ -5,7 +5,7 @@
 ;; Author: Andrew DeOrio <awdeorio@umich.edu>
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
-;; Keywords: writing, style, grammar, flymake
+;; Keywords: text, wp
 ;; URL: https://github.com/awdeorio/flywrite
 
 ;; This file is not part of GNU Emacs.
@@ -799,8 +799,8 @@ Returns a list of (unit-beg unit-end hash) triples."
             (puthash ubeg t seen)
             (let ((hash (flywrite--content-hash ubeg uend)))
               (unless (or (gethash hash flywrite--checked-sentences)
-                          (flywrite--should-skip-p ubeg)
-)                (push (list ubeg uend hash) units))))
+                          (flywrite--should-skip-p ubeg))
+                (push (list ubeg uend hash) units))))
           ;; Move past current unit and inter-sentence whitespace
           (goto-char (max (1+ (point)) uend))
           (skip-chars-forward " \t\n"))))

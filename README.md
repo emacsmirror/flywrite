@@ -60,22 +60,23 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 
 
 ## Configuration
-
-### Optional settings
-Settings with defaults.
-
+Writing feedback settings:
 ```elisp
-(setq flywrite-idle-delay 1.5)                     ; seconds before checking
-(setq flywrite-max-concurrent 3)                   ; max parallel API calls
-(setq flywrite-granularity 'sentence)              ; 'sentence or 'paragraph
-(setq flywrite-system-prompt 'academic)            ; 'prose, 'academic, or custom string
-(setq flywrite-eager t)                            ; eagerly check around point
-(setq flywrite-debug t)                            ; log to *flywrite-log* (on by default)
-(setq flywrite-test-on-load t)                     ; connection test on enable
+(setq flywrite-system-prompt 'academic) ; 'prose, 'academic, or custom string
+(setq flywrite-granularity 'sentence)   ; 'sentence or 'paragraph
+```
+
+Performance settings:
+```elisp
+(setq flywrite-idle-delay 1.5)          ; seconds before checking
+(setq flywrite-max-concurrent 3)        ; max parallel API calls
+(setq flywrite-eager t)                 ; eagerly check around point
+(setq flywrite-debug t)                 ; log to *flywrite-log* (on by default)
+(setq flywrite-test-on-load t)          ; connection test on enable
 ```
 
 ### System prompt
-`flywrite-system-prompt` controls the instructions sent with every API call. It accepts a symbol selecting a built-in style or a custom string. Built-in styles:
+`flywrite-system-prompt` controls the instructions sent with every API call. Select a built-in style or provide a custom string. Built-in styles:
 
 | Symbol | Description |
 |--------|-------------|

@@ -753,6 +753,57 @@ request.  START-TIME is used for latency logging."
 
 ;;;; ---- Idle timer callback ----
 
+(defun flywrite--eager-scan ()
+  "Add units from the paragraph around point to the dirty registry."
+  (condition-case err
+      (save-excursion
+        (let (pbeg pend)
+          (backward-paragraph)
+          (skip-chars-forward " \t\n")
+          (setq pbeg (point))
+          (forward-paragraph)
+          (skip-chars-backward " \t\n")
+          (setq pend (point))
+          (when (> pend pbeg)
+            (dolist (entry (flywrite--collect-units-in-region pbeg pend))
+              (push entry flywrite--dirty-registry)))))
+    (error
+     (flywrite--log "Error in eager scan: %s buf=%s"
+                    (error-message-string err) (buffer-name)))))
+
+(defun flywrite--dispatch-entry (buf beg end hash seen)
+  "Validate and dispatch or queue a single dirty entry.
+BUF is the buffer, BEG/END are bounds, HASH is the content hash,
+SEEN is a hash table for deduplication within this batch."
+  (when (and (<= end (point-max))
+             (>= beg (point-min))
+             (not (gethash hash flywrite--checked-sentences))
+             (not (gethash hash seen))
+             (or (not (flywrite--should-skip-p beg))
+                 (progn
+                   (flywrite--log "Skipped (non-prose region): [%d-%d] hash=%s"
+                                  beg end hash)
+                   nil)))
+    (puthash hash t seen)
+    (if (< flywrite--in-flight flywrite-max-concurrent)
+        (flywrite--send-request buf beg end hash)
+      (flywrite--log "Queued: [%d-%d] (at cap %d) hash=%s"
+                     beg end flywrite--in-flight hash)
+      (setq flywrite--pending-queue
+            (append flywrite--pending-queue
+                    (list (list buf beg end hash)))))))
+
+(defun flywrite--dispatch-dirty-registry (buf)
+  "Snapshot and clear the dirty registry, dispatch or queue entries for BUF."
+  (when flywrite--dirty-registry
+    (let ((snapshot flywrite--dirty-registry)
+          (seen (make-hash-table :test 'equal)))
+      (setq flywrite--dirty-registry nil)
+      (dolist (entry snapshot)
+        (flywrite--dispatch-entry buf
+                                 (nth 0 entry) (nth 1 entry) (nth 2 entry)
+                                 seen)))))
+
 (defun flywrite--idle-timer-fn (buf)
   "Idle timer callback for buffer BUF.
 Snapshots and clears the dirty registry, dispatches or queues requests."
@@ -760,46 +811,8 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
     (with-current-buffer buf
       (when flywrite-mode
         (when flywrite-eager
-          (condition-case err
-              (save-excursion
-                (let (pbeg pend)
-                  (backward-paragraph)
-                  (skip-chars-forward " \t\n")
-                  (setq pbeg (point))
-                  (forward-paragraph)
-                  (skip-chars-backward " \t\n")
-                  (setq pend (point))
-                  (when (> pend pbeg)
-                    (dolist (entry (flywrite--collect-units-in-region pbeg pend))
-                      (push entry flywrite--dirty-registry)))))
-            (error
-             (flywrite--log "Error in eager scan: %s buf=%s"
-                            (error-message-string err) (buffer-name)))))
-        (when flywrite--dirty-registry
-          (let ((snapshot flywrite--dirty-registry)
-                (seen (make-hash-table :test 'equal)))
-            (setq flywrite--dirty-registry nil)
-          (dolist (entry snapshot)
-            (let ((beg (nth 0 entry))
-                  (end (nth 1 entry))
-                  (hash (nth 2 entry)))
-              ;; Re-verify bounds, skip check, and dedup by hash
-              (when (and (<= end (point-max))
-                         (>= beg (point-min))
-                         (not (gethash hash flywrite--checked-sentences))
-                         (not (gethash hash seen))
-                         (or (not (flywrite--should-skip-p beg))
-                             (progn
-                               (flywrite--log "Skipped (non-prose region): [%d-%d] hash=%s" beg end hash)
-                               nil)))
-                (puthash hash t seen)
-                (if (< flywrite--in-flight flywrite-max-concurrent)
-                    (flywrite--send-request buf beg end hash)
-                  (progn
-                    (flywrite--log "Queued: [%d-%d] (at cap %d) hash=%s" beg end flywrite--in-flight hash)
-                    (setq flywrite--pending-queue
-                          (append flywrite--pending-queue
-                                  (list (list buf beg end hash)))))))))))))))
+          (flywrite--eager-scan))
+        (flywrite--dispatch-dirty-registry buf)))))
 
 ;;;; ---- Pending queue drain ----
 

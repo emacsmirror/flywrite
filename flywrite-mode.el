@@ -329,6 +329,57 @@ Checks font-lock faces and major mode."
 
 ;;;; ---- Change detection ----
 
+(defun flywrite--clear-unit-diagnostics (ubeg uend)
+  "Remove diagnostics overlapping UBEG..UEND and re-report."
+  (when flywrite--diagnostics
+    (let ((old-count (length flywrite--diagnostics)))
+      (setq flywrite--diagnostics
+            (cl-remove-if
+             (lambda (diag)
+               (and (>= (flymake-diagnostic-beg diag) ubeg)
+                    (<= (flymake-diagnostic-end diag) uend)))
+             flywrite--diagnostics))
+      (when (and (/= old-count (length flywrite--diagnostics))
+                 flywrite--report-fn)
+        (funcall flywrite--report-fn flywrite--diagnostics)))))
+
+(defun flywrite--update-region-hash (ubeg uend hash)
+  "Update region hash for UBEG..UEND to HASH, clearing stale entries."
+  (let* ((region-key (format "%d-%d" ubeg uend))
+         (old-hash (gethash region-key flywrite--region-hashes)))
+    (when (and old-hash (not (string= old-hash hash)))
+      (remhash old-hash flywrite--checked-sentences))
+    (puthash region-key hash flywrite--region-hashes)))
+
+(defun flywrite--process-changed-unit (ubeg uend hash)
+  "Process a single changed unit bounded by UBEG..UEND with content HASH."
+  (flywrite--clear-unit-diagnostics ubeg uend)
+  (flywrite--update-region-hash ubeg uend hash)
+  ;; Remove stale pending queue entries for this region
+  (setq flywrite--pending-queue
+        (cl-remove-if (lambda (entry)
+                        (and (eq (nth 0 entry) (current-buffer))
+                             (<= (nth 1 entry) uend)
+                             (>= (nth 2 entry) ubeg)))
+                      flywrite--pending-queue))
+  ;; Skip if already checked with same hash
+  (unless (gethash hash flywrite--checked-sentences)
+    ;; Remove any existing dirty entry for overlapping region
+    (setq flywrite--dirty-registry
+          (cl-remove-if (lambda (entry)
+                          (and (<= (nth 0 entry) uend)
+                               (>= (nth 1 entry) ubeg)))
+                        flywrite--dirty-registry))
+    ;; Add new dirty entry
+    (push (list ubeg uend hash) flywrite--dirty-registry)
+    (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
+                   ubeg uend hash
+                   (length flywrite--dirty-registry)
+                   (truncate-string-to-width
+                    (string-trim
+                     (buffer-substring-no-properties ubeg uend))
+                    80 nil nil t))))
+
 (defun flywrite--after-change (beg end _len)
   "Hook for `after-change-functions'.  Marks dirty sentences.
 BEG and END are the changed region boundaries."
@@ -341,52 +392,9 @@ BEG and END are the changed region boundaries."
                           (list bounds1 bounds2)
                         (list bounds1))))
           (dolist (bounds units)
-            (let* ((ubeg (car bounds))
-                   (uend (cdr bounds))
-                   (hash (flywrite--content-hash ubeg uend)))
-              ;; Remove diagnostics overlapping this unit so underlines
-              ;; disappear immediately on edit
-              (when flywrite--diagnostics
-                (let ((old-count (length flywrite--diagnostics)))
-                  (setq flywrite--diagnostics
-                        (cl-remove-if
-                         (lambda (diag)
-                           (and (>= (flymake-diagnostic-beg diag) ubeg)
-                                (<= (flymake-diagnostic-end diag) uend)))
-                         flywrite--diagnostics))
-                  (when (and (/= old-count (length flywrite--diagnostics))
-                             flywrite--report-fn)
-                    (funcall flywrite--report-fn flywrite--diagnostics))))
-              ;; Remove old hash for this region so it gets re-checked
-              (let* ((region-key (format "%d-%d" ubeg uend))
-                     (old-hash (gethash region-key flywrite--region-hashes)))
-                (when (and old-hash (not (string= old-hash hash)))
-                  (remhash old-hash flywrite--checked-sentences))
-                (puthash region-key hash flywrite--region-hashes))
-              ;; Remove stale pending queue entries for this region
-              (setq flywrite--pending-queue
-                    (cl-remove-if (lambda (entry)
-                                    (and (eq (nth 0 entry) (current-buffer))
-                                         (<= (nth 1 entry) uend)
-                                         (>= (nth 2 entry) ubeg)))
-                                  flywrite--pending-queue))
-              ;; Skip if already checked with same hash
-              (unless (gethash hash flywrite--checked-sentences)
-                ;; Remove any existing dirty entry for overlapping region
-                (setq flywrite--dirty-registry
-                      (cl-remove-if (lambda (entry)
-                                      (and (<= (nth 0 entry) uend)
-                                           (>= (nth 1 entry) ubeg)))
-                                    flywrite--dirty-registry))
-                ;; Add new dirty entry
-                (push (list ubeg uend hash) flywrite--dirty-registry)
-                (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
-                               ubeg uend hash
-                               (length flywrite--dirty-registry)
-                               (truncate-string-to-width
-                                (string-trim
-                                 (buffer-substring-no-properties ubeg uend))
-                                80 nil nil t))))))
+            (flywrite--process-changed-unit
+             (car bounds) (cdr bounds)
+             (flywrite--content-hash (car bounds) (cdr bounds)))))
       (error
        (flywrite--log "Error in after-change: %s buf=%s" (error-message-string err) (buffer-name))))))
 
@@ -842,25 +850,32 @@ Reports any existing diagnostics immediately so flymake can display them."
 
 ;;;; ---- Interactive commands ----
 
+(defun flywrite--try-collect-unit (ubeg uend seen)
+  "Return a (ubeg uend hash) triple if unit UBEG..UEND should be collected.
+SEEN is a hash table of already-visited unit starts.  Returns nil
+if the unit is empty, duplicate, already checked, or in a skip region."
+  (when (and (> uend ubeg)
+             (not (gethash ubeg seen)))
+    (puthash ubeg t seen)
+    (let ((hash (flywrite--content-hash ubeg uend)))
+      (unless (or (gethash hash flywrite--checked-sentences)
+                  (flywrite--should-skip-p ubeg))
+        (list ubeg uend hash)))))
+
 (defun flywrite--collect-units-in-region (beg end)
   "Collect all sentence/paragraph units in region BEG to END.
 Returns a list of (unit-beg unit-end hash) triples."
   (let ((units nil)
-        (seen (make-hash-table :test 'eql))
-        (pos beg))
+        (seen (make-hash-table :test 'eql)))
     (save-excursion
-      (goto-char pos)
+      (goto-char beg)
       (while (< (point) end)
         (let* ((bounds (flywrite--unit-bounds-at-pos (point)))
                (ubeg (car bounds))
-               (uend (cdr bounds)))
-          (when (and (> uend ubeg) (<= uend end)
-                     (not (gethash ubeg seen)))
-            (puthash ubeg t seen)
-            (let ((hash (flywrite--content-hash ubeg uend)))
-              (unless (or (gethash hash flywrite--checked-sentences)
-                          (flywrite--should-skip-p ubeg))
-                (push (list ubeg uend hash) units))))
+               (uend (cdr bounds))
+               (entry (when (<= uend end)
+                        (flywrite--try-collect-unit ubeg uend seen))))
+          (when entry (push entry units))
           ;; Move past current unit and inter-sentence whitespace
           (goto-char (max (1+ (point)) uend))
           (skip-chars-forward " \t\n"))))

@@ -67,9 +67,11 @@ is nil, before falling back to the FLYWRITE_API_KEY env var."
   :group 'flywrite)
 
 
-(defcustom flywrite-model "claude-sonnet-4-20250514"
-  "Model to use for writing suggestions."
-  :type 'string
+(defcustom flywrite-api-model nil
+  "Model to use for writing suggestions.
+When nil, the model is auto-detected from `flywrite-api-url'."
+  :type '(choice (const :tag "Auto-detect from URL" nil)
+                 (string :tag "Model name"))
   :group 'flywrite)
 
 
@@ -202,6 +204,16 @@ configure it.  See the README for details."
   :type '(choice (const :tag "Not set" nil)
                  (string :tag "URL"))
   :group 'flywrite)
+
+
+(defconst flywrite--default-model-anthropic "claude-sonnet-4-20250514"
+  "Default model for Anthropic API.")
+
+(defconst flywrite--default-model-openai "gpt-4o"
+  "Default model for OpenAI and OpenAI-compatible APIs.")
+
+(defconst flywrite--default-model-gemini "gemini-2.5-flash"
+  "Default model for Google Gemini API.")
 
 
 (defconst flywrite--prose-prompt
@@ -481,12 +493,28 @@ key is found (e.g., for local providers like Ollama)."
        (string-match-p "api\\.anthropic\\.com" flywrite-api-url)))
 
 
+(defun flywrite--effective-model ()
+  "Return the model to use for API calls.
+If `flywrite-api-model' is non-nil, return it.  Otherwise
+auto-detect from `flywrite-api-url'."
+  (or flywrite-api-model
+      (cond
+       ((null flywrite-api-url)
+        (error "Set flywrite-api-url or flywrite-api-model"))
+       ((string-match-p "api\\.anthropic\\.com" flywrite-api-url)
+        flywrite--default-model-anthropic)
+       ((string-match-p "generativelanguage\\.googleapis\\.com" flywrite-api-url)
+        flywrite--default-model-gemini)
+       (t flywrite--default-model-openai))))
+
+
 (defun flywrite--build-request (text api-key)
   "Build an API request for TEXT, returning (PAYLOAD . HEADERS).
 PAYLOAD is a JSON-encoded string.  HEADERS is an alist suitable
 for `url-request-extra-headers'.  API-KEY may be nil for local
 providers."
   (let* ((anthropic-p (flywrite--anthropic-api-p))
+         (model (flywrite--effective-model))
          (prompt (flywrite--get-system-prompt))
          ;; Anthropic caching wraps the prompt in a content block:
          ;;   "system": [{"type":"text", "text":"...",
@@ -505,12 +533,12 @@ providers."
          ;;   {"model":"...", "messages":[{"role":"system",...},{"role":"user",...}]}
          (payload (json-encode
                    (if anthropic-p
-                       `((model . ,flywrite-model)
+                       `((model . ,model)
                          (max_tokens . 300)
                          (system . ,system-msg)
                          (messages . [((role . "user")
                                        (content . ,text))]))
-                     `((model . ,flywrite-model)
+                     `((model . ,model)
                        (max_tokens . 300)
                        (messages . [((role . "system")
                                      (content . ,prompt))
@@ -1156,7 +1184,7 @@ Eglot replaces the buffer-local value with only its own backend."
   (flywrite--log "flywrite-mode enabled in %s (emacs %s, url=%s, model=%s, granularity=%s, idle=%.1f, max-concurrent=%d, eager=%s, caching=%s, prompt=%s)"
                  (buffer-name) emacs-version
                  (or flywrite-api-url "nil")
-                 flywrite-model flywrite-granularity
+                 (or flywrite-api-model "auto") flywrite-granularity
                  flywrite-idle-delay flywrite-max-concurrent
                  flywrite-eager flywrite-enable-caching
                  (if (symbolp flywrite-system-prompt)

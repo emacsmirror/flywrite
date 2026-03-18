@@ -122,7 +122,7 @@ The `academic` style adds these rules to the `prose` prompt:
 **Note on prompt length:** Longer system prompts increase token usage and cost per API call. Anthropic's prompt caching (`flywrite-enable-caching`, on by default) mitigates this by caching the system prompt across calls, but other providers may not offer caching. If cost is a concern, keep your system prompt concise.
 
 ### API providers
-Configure an API.  Flywrite natively supports the Anthropic Messages API and the OpenAI Chat Completions API, which includes Google Gemini and Ollama.
+Configure an API.  Flywrite natively supports the Anthropic Messages API and the OpenAI Chat Completions API, which includes Google Gemini and Ollama.  The model is optional, by default it is auto-detected from the API URL.
 
 **Security warning:** Restrict access to API key files.
 ```console
@@ -132,39 +132,39 @@ $ chmod 600 ~/.flywrite-api-key
 **Anthropic**
 1. Get an API key at https://console.anthropic.com/settings/keys
 2. Add credits at https://platform.claude.com/settings/billing
-3. Select a [model](https://docs.anthropic.com/en/docs/about-claude/models)
+3. Optionally, select a [model](https://docs.anthropic.com/en/docs/about-claude/models)
 4. Configure
    ```elisp
    (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
    (setq flywrite-api-key-file "~/.flywrite-api-key")
-   (setq flywrite-model "claude-sonnet-4-20250514")
+   (setq flywrite-api-model "claude-sonnet-4-20250514")  ; default
    ```
 
 **OpenAI**
 1. Get an API key at https://platform.openai.com/api-keys
 2. Add credits at https://platform.openai.com/settings/organization/billing/overview
-3. Select a [model](https://platform.openai.com/docs/models)
-4. Configure 
+3. Optionally, select a [model](https://platform.openai.com/docs/models)
+4. Configure
    ```elisp
    (setq flywrite-api-url "https://api.openai.com/v1/chat/completions")
    (setq flywrite-api-key-file "~/.flywrite-api-key")
-   (setq flywrite-model "gpt-4o")
+   (setq flywrite-api-model "gpt-4o")  ; default
    ```
 
 **Google Gemini**
 1. Get an API key at https://aistudio.google.com/apikey
 2. Add credits at https://aistudio.google.com/plan_billing
-3. Select a [model](https://ai.google.dev/gemini-api/docs/models)
+3. Optionally, select a [model](https://ai.google.dev/gemini-api/docs/models)
 4. Configure
    ```elisp
    (setq flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
    (setq flywrite-api-key-file "~/.flywrite-api-key")
-   (setq flywrite-model "gemini-2.5-flash")
+   (setq flywrite-api-model "gemini-2.5-flash")  ; default
    ```
 
 **Ollama**
 1. Install Ollama from https://ollama.com
-2. Select a [model](https://ollama.com/library) model and download it
+2. Select a [model](https://ollama.com/library) and download it
    ```console
    $ ollama pull llama3.2:3b
    $ ollama list
@@ -177,7 +177,7 @@ $ chmod 600 ~/.flywrite-api-key
    ```elisp
    (setq flywrite-api-url "http://localhost:11434/v1/chat/completions")
    ;; No key needed
-   (setq flywrite-model "llama3.2:3b")
+   (setq flywrite-api-model "llama3.2:3b")
    ```
 
 Note: Smaller models may not consistently return valid JSON in the expected format, leading to "LLM returned invalid JSON" messages. Larger models (7B+) tend to be more reliable. Check `*flywrite-log*` to see raw responses.
@@ -187,7 +187,7 @@ Note: Smaller models may not consistently return valid JSON in the expected form
 (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
 (setq flywrite-api-key-file "~/.flywrite-api-key")
 (setq flywrite-api-headers '(("Custom-Header" . "value")))
-(setq flywrite-model "claude-sonnet-4-20250514")
+(setq flywrite-api-model "claude-sonnet-4-20250514")
 ```
 
 `flywrite-api-headers` adds custom HTTP headers to every request, merged with the default Content-Type and authorization headers.

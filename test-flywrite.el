@@ -942,4 +942,52 @@
   (let ((flywrite-system-prompt 'nonexistent))
     (should-error (flywrite--get-system-prompt) :type 'error)))
 
+;;;; ---- Effective model auto-detection ----
+
+
+(ert-deftest flywrite-test-effective-model-anthropic ()
+  "Auto-detect Anthropic model from URL."
+  (let ((flywrite-api-model nil)
+        (flywrite-api-url "https://api.anthropic.com/v1/messages"))
+    (should (string= (flywrite--effective-model)
+                     flywrite--default-model-anthropic))))
+
+
+(ert-deftest flywrite-test-effective-model-openai ()
+  "Auto-detect OpenAI model from URL."
+  (let ((flywrite-api-model nil)
+        (flywrite-api-url "https://api.openai.com/v1/chat/completions"))
+    (should (string= (flywrite--effective-model)
+                     flywrite--default-model-openai))))
+
+
+(ert-deftest flywrite-test-effective-model-gemini ()
+  "Auto-detect Gemini model from URL."
+  (let ((flywrite-api-model nil)
+        (flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"))
+    (should (string= (flywrite--effective-model)
+                     flywrite--default-model-gemini))))
+
+
+(ert-deftest flywrite-test-effective-model-ollama ()
+  "Ollama (OpenAI-compatible) defaults to OpenAI model."
+  (let ((flywrite-api-model nil)
+        (flywrite-api-url "http://localhost:11434/v1/chat/completions"))
+    (should (string= (flywrite--effective-model)
+                     flywrite--default-model-openai))))
+
+
+(ert-deftest flywrite-test-effective-model-explicit-override ()
+  "Explicit flywrite-api-model overrides auto-detection."
+  (let ((flywrite-api-model "my-custom-model")
+        (flywrite-api-url "https://api.anthropic.com/v1/messages"))
+    (should (string= (flywrite--effective-model) "my-custom-model"))))
+
+
+(ert-deftest flywrite-test-effective-model-nil-url-errors ()
+  "Error when both model and URL are nil."
+  (let ((flywrite-api-model nil)
+        (flywrite-api-url nil))
+    (should-error (flywrite--effective-model) :type 'error)))
+
 ;;; test-flywrite.el ends here

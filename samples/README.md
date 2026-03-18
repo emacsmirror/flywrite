@@ -12,3 +12,4 @@ Files for manual end-to-end testing in Emacs. Open a file, run `M-x flywrite-mod
 | `test05.md` | Markdown with headings, blockquotes, a code block, and errors (should skip code blocks) |
 | `test06.tex` | Minimal LaTeX exam with a solution block (should handle custom environments) |
 | `test07.txt` | Two paragraphs: general errors (flagged by `prose`), then academic-only errors (flagged by `academic`) |
+| `test08.txt` | Short plain text with common word-choice errors (affect/effect, then/than) and weak phrasing |

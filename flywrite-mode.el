@@ -1055,10 +1055,12 @@ Prompts for confirmation when the count exceeds
 `flywrite-check-confirm-threshold'."
   (interactive)
   (unless flywrite-mode
+    (flywrite--log "check-buffer: mode not enabled")
     (user-error "Flywrite-mode is not enabled"))
   (let ((units (flywrite--collect-units-in-region (point-min) (point-max))))
     (when (and (> (length units) flywrite-check-confirm-threshold)
                (not (y-or-n-p (format "Check %d sentences? " (length units)))))
+      (flywrite--log "check-buffer: cancelled by user (%d sentences)" (length units))
       (user-error "Cancelled"))
     (let ((count 0))
       (dolist (entry units)
@@ -1073,6 +1075,7 @@ Prompts for confirmation when the count exceeds
                          (buffer-substring-no-properties
                           (nth 0 entry) (nth 1 entry)))
                         80 nil nil t)))
+      (flywrite--log "Queued %d sentences for buffer check" count)
       (message "flywrite: queued %d sentences for checking" count))))
 
 
@@ -1082,12 +1085,15 @@ Prompts for confirmation when the count exceeds
 `flywrite-check-confirm-threshold'."
   (interactive "r")
   (unless flywrite-mode
+    (flywrite--log "check-region: mode not enabled")
     (user-error "Flywrite-mode is not enabled"))
   (unless (use-region-p)
+    (flywrite--log "check-region: no active region")
     (user-error "No active region"))
   (let ((units (flywrite--collect-units-in-region beg end)))
     (when (and (> (length units) flywrite-check-confirm-threshold)
                (not (y-or-n-p (format "Check %d sentences? " (length units)))))
+      (flywrite--log "check-region: cancelled by user (%d sentences)" (length units))
       (user-error "Cancelled"))
     (let ((count 0))
       (dolist (entry units)
@@ -1105,6 +1111,7 @@ Prompts for confirmation when the count exceeds
                          (buffer-substring-no-properties
                           (nth 0 entry) (nth 1 entry)))
                         80 nil nil t)))
+      (flywrite--log "Queued %d sentences in region for checking" count)
       (message "flywrite: queued %d sentences in region for checking" count)
 
       ;; Dispatch immediately rather than waiting for idle timer
@@ -1116,17 +1123,22 @@ Prompts for confirmation when the count exceeds
 Respects `flywrite-granularity'."
   (interactive)
   (unless flywrite-mode
+    (flywrite--log "check-at-point: mode not enabled")
     (user-error "Flywrite-mode is not enabled"))
   (let* ((bounds (flywrite--unit-bounds-at-pos (point)))
          (ubeg (car bounds))
          (uend (cdr bounds))
          (hash (flywrite--content-hash ubeg uend)))
     (when (flywrite--should-skip-p ubeg)
+      (flywrite--log "check-at-point: skipped region at [%d-%d]" ubeg uend)
       (user-error "Point is in a skipped region"))
 
     ;; Remove from checked so it gets re-checked even if seen before
     (remhash hash flywrite--checked-sentences)
     (push (list ubeg uend hash) flywrite--dirty-registry)
+    (flywrite--log "Queued %s at point [%d-%d] hash=%s"
+                   (if (eq flywrite-granularity 'paragraph) "paragraph" "sentence")
+                   ubeg uend hash)
     (message "flywrite: queued %s at point for checking"
              (if (eq flywrite-granularity 'paragraph) "paragraph" "sentence"))
 
@@ -1146,6 +1158,7 @@ Respects `flywrite-granularity'."
     (funcall flywrite--report-fn nil))
   (when (bound-and-true-p flymake-mode)
     (flymake-start))
+  (flywrite--log "Cleared all diagnostics and caches")
   (message "flywrite: cleared all diagnostics and caches"))
 
 ;;;; ---- Minor mode definition ----

@@ -145,6 +145,15 @@ Longer units are passed through without truncation or splitting."
   :group 'flywrite)
 
 
+(defcustom flywrite-api-temperature 0
+  "Temperature for LLM API calls.
+Lower values produce more deterministic, consistent suggestions.
+A value of 0 minimizes randomness, which is ideal for a writing
+checker where reproducibility matters."
+  :type 'number
+  :group 'flywrite)
+
+
 (defcustom flywrite-api-headers nil
   "Extra HTTP headers to include in API requests.
 An alist of (HEADER-NAME . VALUE) pairs.  These are merged with
@@ -556,11 +565,13 @@ providers."
                    (if anthropic-p
                        `((model . ,model)
                          (max_tokens . 300)
+                         (temperature . ,flywrite-api-temperature)
                          (system . ,system-msg)
                          (messages . [((role . "user")
                                        (content . ,text))]))
                      `((model . ,model)
                        (max_tokens . 300)
+                       (temperature . ,flywrite-api-temperature)
                        (messages . [((role . "system")
                                      (content . ,prompt))
                                     ((role . "user")

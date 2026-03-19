@@ -82,6 +82,7 @@ Key design decisions:
 - **Prompt caching**: system prompt uses `cache_control` with `"type": "ephemeral"` for cost reduction
 - **Mode-aware suppression**: skips code blocks, comments, and other non-prose regions via font-lock face inspection
 - **Multi-provider support**: Anthropic endpoints are auto-detected (use `x-api-key` header); all others use `Bearer` token in `Authorization` header
+- **Temperature**: defaults to 0 (`flywrite-api-temperature`) for deterministic, reproducible suggestions
 
 ## Emacs Lisp Conventions
 

@@ -90,10 +90,10 @@ Select a built-in style:
 Or provide a custom string. The prompt must instruct the model to return JSON with a `suggestions` array where each element has `quote` and `reason` keys:
 ```elisp
 (setq flywrite-system-prompt
-  "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
+  "You are a writing assistant. Analyze the text for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
-If the sentence is fine:
+If the text is fine:
 {\"suggestions\": []}
 
 If there are issues:
@@ -103,7 +103,7 @@ Rules:
 - \"quote\" must be an exact substring of the input
 - Keep reasons under 12 words
 - One entry per distinct issue
-- Do not flag correct sentences
+- Do not flag correct text
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content")
 ```
 
@@ -250,14 +250,14 @@ As you move or type, flywrite will automatically run checks after a short idle d
 
 | Command                    | Description                      |
 |----------------------------|----------------------------------|
-| `flywrite-check-buffer`    | Check all sentences in buffer    |
-| `flywrite-check-region`    | Check all sentences in region    |
-| `flywrite-check-at-point`  | Check sentence at point          |
+| `flywrite-check-buffer`    | Check all units in buffer        |
+| `flywrite-check-region`    | Check all units in region        |
+| `flywrite-check-at-point`  | Check unit at point              |
 | `flywrite-clear`           | Clear diagnostics and caches     |
 | `flymake-goto-next-error`  | Next diagnostic (flymake built-in) |
 | `flymake-goto-prev-error`  | Previous diagnostic (flymake built-in) |
 
-Run any command with `M-x`. No default keybindings are provided — bind them yourself if desired.
+A `unit` refers to a sentence or paragraph which is [configurable](#configuration).
 
 ## Troubleshooting
 

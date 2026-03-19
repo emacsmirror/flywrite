@@ -160,7 +160,7 @@
 
 
 (ert-deftest flywrite-test-after-change-marks-dirty ()
-  "Editing text marks the containing sentence dirty."
+  "Editing text marks the containing unit dirty."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
@@ -173,14 +173,14 @@
 
 
 (ert-deftest flywrite-test-after-change-dedup ()
-  "Same content hash is not re-dirtied after being checked."
+  "Same content hash is not re-dirtied after being marked checked."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
       (insert "Hello world.")
       (let ((hash (flywrite--content-hash 1 (point-max))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--dirty-registry nil)
         (flywrite--after-change 1 (point-max) 0)
         (should-not flywrite--dirty-registry))
@@ -196,12 +196,12 @@
       (text-mode)
       (flywrite-mode 1)
       (push '(1 10 "fakehash") flywrite--dirty-registry)
-      (puthash "abc" t flywrite--checked-sentences)
+      (puthash "abc" t flywrite--checked-units)
       (push '(buf 1 10 "fakehash") flywrite--pending-queue)
       (flywrite-clear)
       (should-not flywrite--dirty-registry)
       (should-not flywrite--pending-queue)
-      (should (= (hash-table-count flywrite--checked-sentences) 0))
+      (should (= (hash-table-count flywrite--checked-units) 0))
       (flywrite-mode -1))))
 
 
@@ -209,7 +209,7 @@
 
 
 (ert-deftest flywrite-test-collect-units-basic ()
-  "Collecting units finds sentences in a region."
+  "Collecting units finds unchecked units in a region."
   (let ((flywrite-granularity 'sentence)
         (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
@@ -222,7 +222,7 @@
 
 
 (ert-deftest flywrite-test-collect-units-skips-checked ()
-  "Already-checked sentences are not collected."
+  "Already-checked units are not collected."
   (let ((flywrite-granularity 'sentence)
         (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
@@ -230,7 +230,7 @@
       (flywrite-mode 1)
       (insert "Only sentence.")
       (let ((hash (flywrite--content-hash 1 (point-max))))
-        (puthash hash t flywrite--checked-sentences))
+        (puthash hash t flywrite--checked-units))
       (let ((units (flywrite--collect-units-in-region 1 (point-max))))
         (should (= (length units) 0)))
       (flywrite-mode -1))))
@@ -379,7 +379,7 @@
 
 
 (ert-deftest flywrite-test-after-change-multi-sentence ()
-  "After-change with multiple sentences marks at least one dirty."
+  "After-change with multiple units marks at least one dirty."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
@@ -550,14 +550,14 @@
 
 
 (ert-deftest flywrite-test-drain-queue-skips-checked ()
-  "Drain queue skips entries already in checked-sentences."
+  "Drain queue skips entries already in checked-units."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
       (insert "Hello world.")
       (let ((hash (flywrite--content-hash 1 (point-max))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--pending-queue
               (list (list (current-buffer) 1 (point-max) hash)))
         (setq flywrite--in-flight 0)
@@ -675,7 +675,7 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 429))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         ;; Create a fake response buffer for the handler
         (with-temp-buffer
@@ -683,7 +683,7 @@
           (goto-char (point-min))
           (flywrite--handle-response status buf 1 15 hash (current-time)))
         ;; Hash should still be checked (not removed)
-        (should (gethash hash flywrite--checked-sentences)))
+        (should (gethash hash flywrite--checked-units)))
       (flywrite-mode -1))))
 
 
@@ -697,7 +697,7 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 429))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         (setq flywrite--pending-queue
               (list (list buf 1 15 "fakehash1")
@@ -720,14 +720,14 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 500))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         (with-temp-buffer
           (insert "HTTP/1.1 500 Internal Server Error\r\n\r\n{}")
           (goto-char (point-min))
           (flywrite--handle-response status buf 1 15 hash (current-time)))
         ;; Hash stays checked — user can flywrite-clear to force recheck
-        (should (gethash hash flywrite--checked-sentences)))
+        (should (gethash hash flywrite--checked-units)))
       (flywrite-mode -1))))
 
 ;;;; ---- 529 overload handling ----
@@ -743,7 +743,7 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 529))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         (setq flywrite--pending-queue
               (list (list buf 1 15 "fakehash1")
@@ -766,13 +766,13 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 529))))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         (with-temp-buffer
           (insert "HTTP/1.1 529 Overloaded\r\n\r\n{}")
           (goto-char (point-min))
           (flywrite--handle-response status buf 1 15 hash (current-time)))
-        (should (gethash hash flywrite--checked-sentences)))
+        (should (gethash hash flywrite--checked-units)))
       (flywrite-mode -1))))
 
 
@@ -787,7 +787,7 @@
              (buf (current-buffer))
              (status `(:error (error http 529)))
              (messages nil))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args)
@@ -814,7 +814,7 @@
              (buf (current-buffer))
              (status `(:error (error connection-failed)))
              (response-buf (generate-new-buffer " *test-response*")))
-        (puthash hash t flywrite--checked-sentences)
+        (puthash hash t flywrite--checked-units)
         (setq flywrite--in-flight 1)
         ;; First callback
         (with-current-buffer response-buf

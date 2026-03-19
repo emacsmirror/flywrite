@@ -102,7 +102,7 @@ When nil, the model is auto-detected from `flywrite-api-url'."
 
 
 (defcustom flywrite-idle-delay 1.5
-  "Seconds of idle time before checking dirty sentences."
+  "Seconds of idle time before checking dirty units."
   :type 'number
   :group 'flywrite)
 
@@ -132,7 +132,7 @@ When nil, the model is auto-detected from `flywrite-api-url'."
   :group 'flywrite)
 
 
-(defcustom flywrite-long-sentence-threshold 500
+(defcustom flywrite-long-unit-threshold 500
   "Max characters per unit.
 Longer units are passed through without truncation or splitting."
   :type 'integer
@@ -179,11 +179,11 @@ without needing to edit."
 
 
 (defvar-local flywrite--dirty-registry nil
-  "List of (beg end hash) triples for sentences needing a check.")
+  "List of (beg end hash) triples for units needing a check.")
 
 
-(defvar-local flywrite--checked-sentences (make-hash-table :test 'equal)
-  "Hash table mapping content-hash → t for already-checked sentences.")
+(defvar-local flywrite--checked-units (make-hash-table :test 'equal)
+  "Hash table mapping content-hash → t for already-checked units.")
 
 
 (defvar-local flywrite--in-flight 0
@@ -212,7 +212,7 @@ without needing to edit."
 
 (defvar-local flywrite--region-hashes (make-hash-table :test 'equal)
   "Map from \"beg-end\" region key to the last-known content hash.
-Used by `after-change' to find and remove stale checked-sentence entries.")
+Used by `after-change' to find and remove stale checked-unit entries.")
 
 
 ;;;; ---- Constants ----
@@ -238,10 +238,10 @@ configure it.  See the README for details."
 
 
 (defconst flywrite--prose-prompt
-  "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
+  "You are a writing assistant. Analyze the text for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
-If the sentence is fine:
+If the text is fine:
 {\"suggestions\": []}
 
 If there are issues:
@@ -251,16 +251,16 @@ Rules:
 - \"quote\" must be an exact substring of the input
 - Keep reasons under 12 words
 - One entry per distinct issue
-- Do not flag correct sentences
+- Do not flag correct text
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content"
   "System prompt for general prose writing feedback.")
 
 
 (defconst flywrite--academic-prompt
-  "You are a writing assistant. Analyze the sentence for grammar, clarity, and style.
+  "You are a writing assistant. Analyze the text for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
-If the sentence is fine:
+If the text is fine:
 {\"suggestions\": []}
 
 If there are issues:
@@ -270,7 +270,7 @@ Rules:
 - \"quote\" must be an exact substring of the input
 - Keep reasons under 12 words
 - One entry per distinct issue
-- Do not flag correct sentences
+- Do not flag correct text
 - Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging (e.g., 'a lot', 'things', 'stuff', 'really')
@@ -338,7 +338,7 @@ FORMAT-STRING and ARGS are passed to `format'."
 
 
 (defun flywrite--unit-bounds-at-pos (pos)
-  "Return (beg . end) of the sentence or paragraph containing POS.
+  "Return (beg . end) of the unit containing POS.
 Respects `flywrite-granularity'."
   (save-excursion
     (goto-char pos)
@@ -423,7 +423,7 @@ Checks font-lock faces and major mode."
   (let* ((region-key (format "%d-%d" ubeg uend))
          (old-hash (gethash region-key flywrite--region-hashes)))
     (when (and old-hash (not (string= old-hash hash)))
-      (remhash old-hash flywrite--checked-sentences))
+      (remhash old-hash flywrite--checked-units))
     (puthash region-key hash flywrite--region-hashes)))
 
 
@@ -441,7 +441,7 @@ Checks font-lock faces and major mode."
                       flywrite--pending-queue))
 
   ;; Skip if already checked with same hash
-  (unless (gethash hash flywrite--checked-sentences)
+  (unless (gethash hash flywrite--checked-units)
     ;; Remove any existing dirty entry for overlapping region
     (setq flywrite--dirty-registry
           (cl-remove-if (lambda (entry)
@@ -461,7 +461,7 @@ Checks font-lock faces and major mode."
 
 
 (defun flywrite--after-change (beg end _len)
-  "Hook for `after-change-functions'.  Marks dirty sentences.
+  "Hook for `after-change-functions'.  Marks dirty units.
 BEG and END are the changed region boundaries."
   (when flywrite-mode
     (condition-case err
@@ -472,7 +472,7 @@ BEG and END are the changed region boundaries."
                           (list bounds1 bounds2)
                         (list bounds1))))
 
-          ;; An edit near a sentence boundary can dirty two units.
+          ;; An edit near a unit boundary can dirty two units.
           (dolist (bounds units)
             (flywrite--process-changed-unit
              (car bounds) (cdr bounds)
@@ -630,7 +630,7 @@ Signal an error if configuration is invalid, preventing mode activation."
 HASH is the content hash at time of dispatch for stale checking."
   ;; Skip if already checked (catches duplicates from queue)
   (if (with-current-buffer buf
-        (gethash hash flywrite--checked-sentences))
+        (gethash hash flywrite--checked-units))
       (flywrite--log "Skipping already-checked hash=%s" hash)
     (unless flywrite-api-url
       (flywrite--log "ERROR: flywrite-api-url is not set")
@@ -657,7 +657,7 @@ HASH is the content hash at time of dispatch for stale checking."
           ;; one is still in progress.
           (with-current-buffer buf
             (cl-incf flywrite--in-flight)
-            (puthash hash t flywrite--checked-sentences))
+            (puthash hash t flywrite--checked-units))
 
           ;; Fire async HTTP request; track the connection buffer for cleanup.
           (let ((conn-buf
@@ -755,17 +755,17 @@ or nil if no text could be extracted.  Signals on malformed HTTP."
 
 (defun flywrite--handle-stale-response (beg end hash)
   "Return non-nil if the response for BEG..END with HASH is stale.
-When stale, removes the old hash and re-dirties the region."
+When stale, removes the old hash and re-dirties the unit."
   ;; The text may have changed while the API call was in-flight.
   ;; Detect this via hash mismatch and re-dirty instead of applying.
   (when (or (> end (point-max))
             (< beg (point-min))
             (not (string= hash (flywrite--content-hash beg end))))
     (flywrite--log "Stale response discarded: [%d-%d] hash=%s" beg end hash)
-    (remhash hash flywrite--checked-sentences)
+    (remhash hash flywrite--checked-units)
     (let ((new-hash (when (and (<= beg (point-max)) (<= end (point-max)))
                       (flywrite--content-hash beg end))))
-      (when (and new-hash (not (gethash new-hash flywrite--checked-sentences)))
+      (when (and new-hash (not (gethash new-hash flywrite--checked-units)))
         (push (list beg end new-hash) flywrite--dirty-registry)))
     t))
 
@@ -799,7 +799,7 @@ BEG, END, HASH identify the checked region."
 
         ;; Report to flymake and mark checked
         (flywrite--report-to-flymake hash)
-        (puthash hash t flywrite--checked-sentences))
+        (puthash hash t flywrite--checked-units))
     (error
      (flywrite--log "LLM returned unparseable response: %s hash=%s\nRaw text: %s"
                     (error-message-string parse-err) hash text)
@@ -937,7 +937,7 @@ SEEN is a hash table for deduplication within this batch."
   ;; been checked or seen in this batch, and the region is prose.
   (when (and (<= end (point-max))
              (>= beg (point-min))
-             (not (gethash hash flywrite--checked-sentences))
+             (not (gethash hash flywrite--checked-units))
              (not (gethash hash seen))
              (or (not (flywrite--should-skip-p beg))
                  (progn
@@ -996,7 +996,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
            (hash (nth 3 entry)))
       (when (and (buffer-live-p buf)
                  (<= end (with-current-buffer buf (point-max)))
-                 (not (gethash hash (buffer-local-value 'flywrite--checked-sentences buf))))
+                 (not (gethash hash (buffer-local-value 'flywrite--checked-units buf))))
         (flywrite--log "Draining queue: [%d-%d] hash=%s" beg end hash)
         (flywrite--send-request buf beg end hash)))))
 
@@ -1023,13 +1023,13 @@ if the unit is empty, duplicate, already checked, or in a skip region."
              (not (gethash ubeg seen)))
     (puthash ubeg t seen)
     (let ((hash (flywrite--content-hash ubeg uend)))
-      (unless (or (gethash hash flywrite--checked-sentences)
+      (unless (or (gethash hash flywrite--checked-units)
                   (flywrite--should-skip-p ubeg))
         (list ubeg uend hash)))))
 
 
 (defun flywrite--collect-units-in-region (beg end)
-  "Collect all sentence/paragraph units in region BEG to END.
+  "Collect all units in region BEG to END.
 Returns a list of (unit-beg unit-end hash) triples."
   (let ((units nil)
         (seen (make-hash-table :test 'eql)))
@@ -1043,14 +1043,14 @@ Returns a list of (unit-beg unit-end hash) triples."
                         (flywrite--try-collect-unit ubeg uend seen))))
           (when entry (push entry units))
 
-          ;; Move past current unit and inter-sentence whitespace
+          ;; Move past current unit and inter-unit whitespace
           (goto-char (max (1+ (point)) uend))
           (skip-chars-forward " \t\n"))))
     (nreverse units)))
 
 
 (defun flywrite-check-buffer ()
-  "Queue all sentences in the buffer for checking.
+  "Queue all units in the buffer for checking.
 Prompts for confirmation when the count exceeds
 `flywrite-check-confirm-threshold'."
   (interactive)
@@ -1059,8 +1059,8 @@ Prompts for confirmation when the count exceeds
     (user-error "Flywrite-mode is not enabled"))
   (let ((units (flywrite--collect-units-in-region (point-min) (point-max))))
     (when (and (> (length units) flywrite-check-confirm-threshold)
-               (not (y-or-n-p (format "Check %d sentences? " (length units)))))
-      (flywrite--log "check-buffer: cancelled by user (%d sentences)" (length units))
+               (not (y-or-n-p (format "Check %d units? " (length units)))))
+      (flywrite--log "check-buffer: cancelled by user (%d units)" (length units))
       (user-error "Cancelled"))
     (let ((count 0))
       (dolist (entry units)
@@ -1075,12 +1075,12 @@ Prompts for confirmation when the count exceeds
                          (buffer-substring-no-properties
                           (nth 0 entry) (nth 1 entry)))
                         80 nil nil t)))
-      (flywrite--log "Queued %d sentences for buffer check" count)
-      (message "flywrite: queued %d sentences for checking" count))))
+      (flywrite--log "Queued %d units for buffer check" count)
+      (message "flywrite: queued %d units for checking" count))))
 
 
 (defun flywrite-check-region (beg end)
-  "Queue all sentences between BEG and END for checking.
+  "Queue all units between BEG and END for checking.
 Prompts for confirmation when the count exceeds
 `flywrite-check-confirm-threshold'."
   (interactive "r")
@@ -1092,14 +1092,14 @@ Prompts for confirmation when the count exceeds
     (user-error "No active region"))
   (let ((units (flywrite--collect-units-in-region beg end)))
     (when (and (> (length units) flywrite-check-confirm-threshold)
-               (not (y-or-n-p (format "Check %d sentences? " (length units)))))
-      (flywrite--log "check-region: cancelled by user (%d sentences)" (length units))
+               (not (y-or-n-p (format "Check %d units? " (length units)))))
+      (flywrite--log "check-region: cancelled by user (%d units)" (length units))
       (user-error "Cancelled"))
     (let ((count 0))
       (dolist (entry units)
 
         ;; Remove from checked so re-checks work
-        (remhash (nth 2 entry) flywrite--checked-sentences)
+        (remhash (nth 2 entry) flywrite--checked-units)
         (push entry flywrite--dirty-registry)
         (setq count (1+ count))
         (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
@@ -1111,15 +1111,15 @@ Prompts for confirmation when the count exceeds
                          (buffer-substring-no-properties
                           (nth 0 entry) (nth 1 entry)))
                         80 nil nil t)))
-      (flywrite--log "Queued %d sentences in region for checking" count)
-      (message "flywrite: queued %d sentences in region for checking" count)
+      (flywrite--log "Queued %d units in region for checking" count)
+      (message "flywrite: queued %d units in region for checking" count)
 
       ;; Dispatch immediately rather than waiting for idle timer
       (flywrite--idle-timer-fn (current-buffer)))))
 
 
 (defun flywrite-check-at-point ()
-  "Queue the sentence or paragraph at point for checking.
+  "Queue the unit at point for checking.
 Respects `flywrite-granularity'."
   (interactive)
   (unless flywrite-mode
@@ -1134,13 +1134,10 @@ Respects `flywrite-granularity'."
       (user-error "Point is in a skipped region"))
 
     ;; Remove from checked so it gets re-checked even if seen before
-    (remhash hash flywrite--checked-sentences)
+    (remhash hash flywrite--checked-units)
     (push (list ubeg uend hash) flywrite--dirty-registry)
-    (flywrite--log "Queued %s at point [%d-%d] hash=%s"
-                   (if (eq flywrite-granularity 'paragraph) "paragraph" "sentence")
-                   ubeg uend hash)
-    (message "flywrite: queued %s at point for checking"
-             (if (eq flywrite-granularity 'paragraph) "paragraph" "sentence"))
+    (flywrite--log "Queued unit at point [%d-%d] hash=%s" ubeg uend hash)
+    (message "flywrite: queued unit at point for checking")
 
     ;; Dispatch immediately rather than waiting for idle timer
     (flywrite--idle-timer-fn (current-buffer))))
@@ -1152,7 +1149,7 @@ Respects `flywrite-granularity'."
   (setq flywrite--diagnostics nil)
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
-  (clrhash flywrite--checked-sentences)
+  (clrhash flywrite--checked-units)
   (clrhash flywrite--region-hashes)
   (when flywrite--report-fn
     (funcall flywrite--report-fn nil))
@@ -1168,8 +1165,7 @@ Respects `flywrite-granularity'."
 
 (define-minor-mode flywrite-mode
   "Minor mode for inline writing suggestions via LLM.
-Provides sentence-level grammar, clarity, and style feedback as
-flymake diagnostics."
+Provides grammar, clarity, and style feedback as flymake diagnostics."
   :lighter " Flywrite"
   :group 'flywrite
   (cond
@@ -1202,7 +1198,7 @@ Eglot replaces the buffer-local value with only its own backend."
 
   ;; Initialize buffer-local state
   (setq flywrite--dirty-registry nil)
-  (setq flywrite--checked-sentences (make-hash-table :test 'equal))
+  (setq flywrite--checked-units (make-hash-table :test 'equal))
   (setq flywrite--region-hashes (make-hash-table :test 'equal))
   (setq flywrite--in-flight 0)
   (setq flywrite--pending-queue nil)
@@ -1276,7 +1272,7 @@ Eglot replaces the buffer-local value with only its own backend."
   ;; Reset all state
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
-  (clrhash flywrite--checked-sentences)
+  (clrhash flywrite--checked-units)
   (clrhash flywrite--region-hashes))
 
 (provide 'flywrite-mode)

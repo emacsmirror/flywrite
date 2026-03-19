@@ -145,11 +145,6 @@ without needing to edit."
   :group 'flywrite)
 
 
-(defcustom flywrite-test-on-load t
-  "When non-nil, test the API connection when `flywrite-mode' is enabled."
-  :type 'boolean
-  :group 'flywrite)
-
 ;; Forward-declare the minor-mode variable (defined by define-minor-mode
 ;; below) so the byte compiler doesn't warn about a free variable.
 (defvar flywrite-mode)
@@ -559,69 +554,29 @@ providers."
     (cons payload headers)))
 
 
-(defun flywrite--test-connection ()
-  "Send a test request to verify the API connection.
-Shows status in the minibuffer.  On failure, suggests enabling
-`flywrite-debug' for troubleshooting."
-  (message "flywrite: testing connection")
-  (flywrite--log "Connection test: starting")
+(defun flywrite--validate-config ()
+  "Validate flywrite configuration.
+Signal an error if configuration is invalid, preventing mode activation."
+  (flywrite--log "Validating API configuration")
   (condition-case err
-      ;; Validate configuration and build the request.
-      (let* ((_ (unless flywrite-api-url
-                  (error "Set flywrite-api-url before testing.  Try M-x customize-variable flywrite-api-url")))
-             (_ (unless (string-match-p "\\`https?://" flywrite-api-url)
-                  (error "URL flywrite-api-url must start with http:// or https://: %s"
-                         flywrite-api-url)))
-             (text "The quick brown fox jumped over the lazy dog.")
-             (api-key (flywrite--get-api-key))
-             (local-p (and flywrite-api-url
-                          (string-match-p "\\(?:localhost\\|127\\.0\\.0\\.1\\)" flywrite-api-url)))
-             (_ (when (and (not api-key) (not local-p))
-                  (error "API key is not set.  See the README for configuration")))
-             (_ (flywrite--effective-model))
-             (_ (flywrite--get-system-prompt))
-             (request (flywrite--build-request text api-key))
-             (payload (car request))
-             (url-request-method "POST")
-             (url-request-extra-headers (cdr request))
-             (url-request-data (encode-coding-string payload 'utf-8)))
-
-        ;; Fire the async request; the callback reports success/failure.
-        (flywrite--log "Connection test: sending request to %s JSON=%s" flywrite-api-url payload)
-        (url-retrieve
-         flywrite-api-url
-         (lambda (status)
-           (unwind-protect
-               (condition-case cb-err
-
-                   ;; Success path: parse response JSON.
-                   (progn
-                     (when (plist-get status :error)
-                       (error "API request failed: %s" (plist-get status :error)))
-                     (goto-char (point-min))
-                     (unless (re-search-forward "\r?\n\r?\n" nil t)
-                       (error "Malformed HTTP response"))
-                     (let ((json-data (json-read)))
-                       (flywrite--log "Connection test response: success JSON=%S" json-data))
-                     (message "flywrite: connection test success"))
-
-                 ;; Failure path: log the response body for debugging.
-                 (error
-                  (flywrite--log "Connection test failed: %s JSON=%s"
-                                  (error-message-string cb-err)
-                                  (ignore-errors
-                                    (goto-char (point-min))
-                                    (when (re-search-forward "\r?\n\r?\n" nil t)
-                                      (buffer-substring-no-properties (point) (point-max)))))
-                  (message "flywrite: connection test failed: %s.  Check *flywrite-log* for details."
-                           (error-message-string cb-err))))
-             (kill-buffer (current-buffer))))
-         nil t t))
-
-    ;; Synchronous errors (bad config, missing key, etc.).
+      (progn
+        (unless flywrite-api-url
+          (error "Set flywrite-api-url."))
+        (unless (string-match-p "\\`https?://" flywrite-api-url)
+          (error "Variable flywrite-api-url must start with http:// or https://: %s"
+                 flywrite-api-url))
+        (let* ((local-p (string-match-p
+                         "\\(?:localhost\\|127\\.0\\.0\\.1\\)" flywrite-api-url))
+               (api-key (flywrite--get-api-key)))
+          (when (and (not api-key) (not local-p))
+            (error "API key is not set.  See the README for configuration")))
+        (flywrite--effective-model)
+        (flywrite--get-system-prompt)
+        (flywrite--log "Config valid: url=%s model=%s"
+                       flywrite-api-url (flywrite--effective-model)))
     (error
-     (flywrite--log "Connection test failed: %s" (error-message-string err))
-     (message "flywrite: connection test failed: %s" (error-message-string err)))))
+     (flywrite--log "Config validation failed: %s" (error-message-string err))
+     (signal (car err) (cdr err)))))
 
 
 (defun flywrite--send-request (buf beg end hash)
@@ -1157,7 +1112,11 @@ flymake diagnostics."
     ;; Already active — skip duplicate setup (e.g., multiple hooks firing)
     nil)
    (t
-    (flywrite--enable))))
+    (condition-case err
+        (flywrite--enable)
+      (error
+       (setq flywrite-mode nil)
+       (signal (car err) (cdr err)))))))
 
 
 (defun flywrite--ensure-flymake-backend ()
@@ -1171,6 +1130,9 @@ Eglot replaces the buffer-local value with only its own backend."
 
 (defun flywrite--enable ()
   "Set up flywrite-mode in the current buffer."
+  ;; Validate config before any setup — signals error on bad config
+  (flywrite--validate-config)
+
   ;; Initialize buffer-local state
   (setq flywrite--dirty-registry nil)
   (setq flywrite--checked-sentences (make-hash-table :test 'equal))
@@ -1208,11 +1170,7 @@ Eglot replaces the buffer-local value with only its own backend."
                  (if (symbolp flywrite-system-prompt)
                      flywrite-system-prompt
                    "custom"))
-  (flywrite--log "System prompt:\n%s" (flywrite--get-system-prompt))
-
-  ;; Verify the API connection works on startup
-  (when flywrite-test-on-load
-    (flywrite--test-connection)))
+  (flywrite--log "System prompt:\n%s" (flywrite--get-system-prompt)))
 
 
 (defun flywrite--disable ()

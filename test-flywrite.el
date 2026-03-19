@@ -161,45 +161,48 @@
 
 (ert-deftest flywrite-test-after-change-marks-dirty ()
   "Editing text marks the containing sentence dirty."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Hello world.")
-    ;; Simulate a change
-    (flywrite--after-change 1 (point-max) 0)
-    (should flywrite--dirty-registry)
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Hello world.")
+      ;; Simulate a change
+      (flywrite--after-change 1 (point-max) 0)
+      (should flywrite--dirty-registry)
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-after-change-dedup ()
   "Same content hash is not re-dirtied after being checked."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Hello world.")
-    (let ((hash (flywrite--content-hash 1 (point-max))))
-      (puthash hash t flywrite--checked-sentences)
-      (setq flywrite--dirty-registry nil)
-      (flywrite--after-change 1 (point-max) 0)
-      (should-not flywrite--dirty-registry))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Hello world.")
+      (let ((hash (flywrite--content-hash 1 (point-max))))
+        (puthash hash t flywrite--checked-sentences)
+        (setq flywrite--dirty-registry nil)
+        (flywrite--after-change 1 (point-max) 0)
+        (should-not flywrite--dirty-registry))
+      (flywrite-mode -1))))
 
 ;;;; ---- Clear ----
 
 
 (ert-deftest flywrite-test-clear-resets-state ()
   "flywrite-clear resets all buffer-local state."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (push '(1 10 "fakehash") flywrite--dirty-registry)
-    (puthash "abc" t flywrite--checked-sentences)
-    (push '(buf 1 10 "fakehash") flywrite--pending-queue)
-    (flywrite-clear)
-    (should-not flywrite--dirty-registry)
-    (should-not flywrite--pending-queue)
-    (should (= (hash-table-count flywrite--checked-sentences) 0))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (push '(1 10 "fakehash") flywrite--dirty-registry)
+      (puthash "abc" t flywrite--checked-sentences)
+      (push '(buf 1 10 "fakehash") flywrite--pending-queue)
+      (flywrite-clear)
+      (should-not flywrite--dirty-registry)
+      (should-not flywrite--pending-queue)
+      (should (= (hash-table-count flywrite--checked-sentences) 0))
+      (flywrite-mode -1))))
 
 
 ;;;; ---- Collect units in region ----
@@ -207,7 +210,8 @@
 
 (ert-deftest flywrite-test-collect-units-basic ()
   "Collecting units finds sentences in a region."
-  (let ((flywrite-granularity 'sentence))
+  (let ((flywrite-granularity 'sentence)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -219,7 +223,8 @@
 
 (ert-deftest flywrite-test-collect-units-skips-checked ()
   "Already-checked sentences are not collected."
-  (let ((flywrite-granularity 'sentence))
+  (let ((flywrite-granularity 'sentence)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -236,15 +241,16 @@
 
 (ert-deftest flywrite-test-mode-enable-disable ()
   "Enabling and disabling the mode sets up and tears down state."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (should flywrite-mode)
-    (should flywrite--idle-timer)
-    (should (memq #'flywrite-flymake flymake-diagnostic-functions))
-    (flywrite-mode -1)
-    (should-not flywrite-mode)
-    (should-not flywrite--idle-timer)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (should flywrite-mode)
+      (should flywrite--idle-timer)
+      (should (memq #'flywrite-flymake flymake-diagnostic-functions))
+      (flywrite-mode -1)
+      (should-not flywrite-mode)
+      (should-not flywrite--idle-timer))))
 
 
 ;;;; ---- Sentence boundaries with test file content (test00.txt) ----
@@ -271,7 +277,8 @@
 
 (ert-deftest flywrite-test-collect-units-plain-text ()
   "Collect all sentences from multi-sentence plain text (test00.txt)."
-  (let ((flywrite-granularity 'sentence))
+  (let ((flywrite-granularity 'sentence)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -305,7 +312,8 @@
 
 (ert-deftest flywrite-test-collect-units-paragraphs ()
   "Collect paragraph units from multi-paragraph content."
-  (let ((flywrite-granularity 'paragraph))
+  (let ((flywrite-granularity 'paragraph)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -331,7 +339,8 @@
 
 (ert-deftest flywrite-test-collect-units-latex-prose ()
   "Collect units from LaTeX prose, ignoring preamble-like lines."
-  (let ((flywrite-granularity 'sentence))
+  (let ((flywrite-granularity 'sentence)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -371,39 +380,42 @@
 
 (ert-deftest flywrite-test-after-change-multi-sentence ()
   "After-change with multiple sentences marks at least one dirty."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "First sentence. Second sentence. Third sentence.")
-    (flywrite--after-change 1 17 0)
-    (should flywrite--dirty-registry)
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "First sentence. Second sentence. Third sentence.")
+      (flywrite--after-change 1 17 0)
+      (should flywrite--dirty-registry)
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-after-change-replaces-overlapping ()
   "A second change to the same region replaces the dirty entry."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Hello world.")
-    (flywrite--after-change 1 (point-max) 0)
-    (let ((count-before (length flywrite--dirty-registry)))
-      ;; Same region, same content — should not add duplicate
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Hello world.")
       (flywrite--after-change 1 (point-max) 0)
-      (should (= (length flywrite--dirty-registry) count-before)))
-    (flywrite-mode -1)))
+      (let ((count-before (length flywrite--dirty-registry)))
+        ;; Same region, same content — should not add duplicate
+        (flywrite--after-change 1 (point-max) 0)
+        (should (= (length flywrite--dirty-registry) count-before)))
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-dirty-registry-cleared-on-disable ()
   "Disabling the mode clears the dirty registry."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Hello world.")
-    (flywrite--after-change 1 (point-max) 0)
-    (should flywrite--dirty-registry)
-    (flywrite-mode -1)
-    (should-not flywrite--dirty-registry)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Hello world.")
+      (flywrite--after-change 1 (point-max) 0)
+      (should flywrite--dirty-registry)
+      (flywrite-mode -1)
+      (should-not flywrite--dirty-registry))))
 
 
 ;;;; ---- Skip detection ----
@@ -453,7 +465,8 @@
 
 (ert-deftest flywrite-test-collect-units-no-duplicates ()
   "Collecting units does not produce duplicate entries for the same position."
-  (let ((flywrite-granularity 'sentence))
+  (let ((flywrite-granularity 'sentence)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -467,7 +480,8 @@
 
 (ert-deftest flywrite-test-collect-units-empty-buffer ()
   "Collecting units in an empty buffer returns nil."
-  (let ((flywrite-granularity 'sentence))
+  (let ((flywrite-granularity 'sentence)
+        (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
@@ -481,29 +495,31 @@
 
 (ert-deftest flywrite-test-flymake-backend-stores-report-fn ()
   "The flymake backend stores the report function."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (let ((called nil))
-      (flywrite-flymake (lambda (diags) (setq called t)))
-      (should called)
-      (should flywrite--report-fn))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (let ((called nil))
+        (flywrite-flymake (lambda (diags) (setq called t)))
+        (should called)
+        (should flywrite--report-fn))
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-flymake-backend-reports-existing-diags ()
   "The flymake backend reports existing diagnostics immediately."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Test text.")
-    ;; Add a fake diagnostic
-    (push (flymake-make-diagnostic (current-buffer) 1 5 :note "test [flywrite]")
-          flywrite--diagnostics)
-    (let ((reported nil))
-      (flywrite-flymake (lambda (diags) (setq reported diags)))
-      (should (= (length reported) 1)))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Test text.")
+      ;; Add a fake diagnostic
+      (push (flymake-make-diagnostic (current-buffer) 1 5 :note "test [flywrite]")
+            flywrite--diagnostics)
+      (let ((reported nil))
+        (flywrite-flymake (lambda (diags) (setq reported diags)))
+        (should (= (length reported) 1)))
+      (flywrite-mode -1))))
 
 
 ;;;; ---- API key env var ----
@@ -535,21 +551,22 @@
 
 (ert-deftest flywrite-test-drain-queue-skips-checked ()
   "Drain queue skips entries already in checked-sentences."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Hello world.")
-    (let ((hash (flywrite--content-hash 1 (point-max))))
-      (puthash hash t flywrite--checked-sentences)
-      (setq flywrite--pending-queue
-            (list (list (current-buffer) 1 (point-max) hash)))
-      (setq flywrite--in-flight 0)
-      ;; drain-queue should skip the checked entry
-      ;; (it won't call send-request since api-url is nil, but it
-      ;; removes the entry from the queue)
-      (flywrite--drain-queue)
-      (should-not flywrite--pending-queue))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Hello world.")
+      (let ((hash (flywrite--content-hash 1 (point-max))))
+        (puthash hash t flywrite--checked-sentences)
+        (setq flywrite--pending-queue
+              (list (list (current-buffer) 1 (point-max) hash)))
+        (setq flywrite--in-flight 0)
+        ;; drain-queue should skip the checked entry
+        ;; (it won't call send-request since api-url is nil, but it
+        ;; removes the entry from the queue)
+        (flywrite--drain-queue)
+        (should-not flywrite--pending-queue))
+      (flywrite-mode -1))))
 
 
 ;;;; ---- Logging ----
@@ -579,25 +596,27 @@
 
 (ert-deftest flywrite-test-mode-enable-twice ()
   "Enabling the mode twice does not create duplicate timers."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (let ((timer1 flywrite--idle-timer))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
       (flywrite-mode 1)
-      ;; Timer should be the same object (no duplicate)
-      (should (eq flywrite--idle-timer timer1)))
-    (flywrite-mode -1)))
+      (let ((timer1 flywrite--idle-timer))
+        (flywrite-mode 1)
+        ;; Timer should be the same object (no duplicate)
+        (should (eq flywrite--idle-timer timer1)))
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-mode-disable-twice ()
   "Disabling the mode twice is harmless."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (flywrite-mode -1)
-    (flywrite-mode -1)
-    (should-not flywrite-mode)
-    (should-not flywrite--idle-timer)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (flywrite-mode -1)
+      (flywrite-mode -1)
+      (should-not flywrite-mode)
+      (should-not flywrite--idle-timer))))
 
 
 ;;;; ---- Connection cleanup on disable ----
@@ -605,39 +624,42 @@
 
 (ert-deftest flywrite-test-disable-kills-connection-buffers ()
   "Disabling the mode kills tracked connection buffers."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    ;; Simulate tracked connection buffers
-    (let ((fake-conn1 (generate-new-buffer " *test-conn1*"))
-          (fake-conn2 (generate-new-buffer " *test-conn2*")))
-      (setq flywrite--connection-buffers (list fake-conn1 fake-conn2))
-      (flywrite-mode -1)
-      (should-not (buffer-live-p fake-conn1))
-      (should-not (buffer-live-p fake-conn2))
-      (should-not flywrite--connection-buffers))))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      ;; Simulate tracked connection buffers
+      (let ((fake-conn1 (generate-new-buffer " *test-conn1*"))
+            (fake-conn2 (generate-new-buffer " *test-conn2*")))
+        (setq flywrite--connection-buffers (list fake-conn1 fake-conn2))
+        (flywrite-mode -1)
+        (should-not (buffer-live-p fake-conn1))
+        (should-not (buffer-live-p fake-conn2))
+        (should-not flywrite--connection-buffers)))))
 
 
 (ert-deftest flywrite-test-disable-handles-dead-connection-buffers ()
   "Disabling the mode handles already-dead connection buffers gracefully."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (let ((fake-conn (generate-new-buffer " *test-conn*")))
-      (kill-buffer fake-conn)
-      (setq flywrite--connection-buffers (list fake-conn))
-      ;; Should not error
-      (flywrite-mode -1)
-      (should-not flywrite--connection-buffers))))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (let ((fake-conn (generate-new-buffer " *test-conn*")))
+        (kill-buffer fake-conn)
+        (setq flywrite--connection-buffers (list fake-conn))
+        ;; Should not error
+        (flywrite-mode -1)
+        (should-not flywrite--connection-buffers)))))
 
 
 (ert-deftest flywrite-test-connection-buffers-initialized ()
   "Connection buffers list is initialized on enable."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (should-not flywrite--connection-buffers)
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (should-not flywrite--connection-buffers)
+      (flywrite-mode -1))))
 
 
 ;;;; ---- 429 rate limit handling ----
@@ -645,180 +667,152 @@
 
 (ert-deftest flywrite-test-429-keeps-hash-checked ()
   "A 429 error keeps the hash in checked-sentences to prevent retry."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Test sentence.")
-    (let* ((hash (flywrite--content-hash 1 (point-max)))
-           (buf (current-buffer))
-           (status `(:error (error http 429))))
-      (puthash hash t flywrite--checked-sentences)
-      (setq flywrite--in-flight 1)
-      ;; Create a fake response buffer for the handler
-      (with-temp-buffer
-        (insert "HTTP/1.1 429 Too Many Requests\r\n\r\n{}")
-        (goto-char (point-min))
-        (flywrite--handle-response status buf 1 15 hash (current-time)))
-      ;; Hash should still be checked (not removed)
-      (should (gethash hash flywrite--checked-sentences)))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Test sentence.")
+      (let* ((hash (flywrite--content-hash 1 (point-max)))
+             (buf (current-buffer))
+             (status `(:error (error http 429))))
+        (puthash hash t flywrite--checked-sentences)
+        (setq flywrite--in-flight 1)
+        ;; Create a fake response buffer for the handler
+        (with-temp-buffer
+          (insert "HTTP/1.1 429 Too Many Requests\r\n\r\n{}")
+          (goto-char (point-min))
+          (flywrite--handle-response status buf 1 15 hash (current-time)))
+        ;; Hash should still be checked (not removed)
+        (should (gethash hash flywrite--checked-sentences)))
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-429-clears-pending-queue ()
   "A 429 error clears the pending queue to stop hammering the API."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Test sentence.")
-    (let* ((hash (flywrite--content-hash 1 (point-max)))
-           (buf (current-buffer))
-           (status `(:error (error http 429))))
-      (puthash hash t flywrite--checked-sentences)
-      (setq flywrite--in-flight 1)
-      (setq flywrite--pending-queue
-            (list (list buf 1 15 "fakehash1")
-                  (list buf 1 15 "fakehash2")))
-      (with-temp-buffer
-        (insert "HTTP/1.1 429 Too Many Requests\r\n\r\n{}")
-        (goto-char (point-min))
-        (flywrite--handle-response status buf 1 15 hash (current-time)))
-      (should-not flywrite--pending-queue))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Test sentence.")
+      (let* ((hash (flywrite--content-hash 1 (point-max)))
+             (buf (current-buffer))
+             (status `(:error (error http 429))))
+        (puthash hash t flywrite--checked-sentences)
+        (setq flywrite--in-flight 1)
+        (setq flywrite--pending-queue
+              (list (list buf 1 15 "fakehash1")
+                    (list buf 1 15 "fakehash2")))
+        (with-temp-buffer
+          (insert "HTTP/1.1 429 Too Many Requests\r\n\r\n{}")
+          (goto-char (point-min))
+          (flywrite--handle-response status buf 1 15 hash (current-time)))
+        (should-not flywrite--pending-queue))
+      (flywrite-mode -1))))
 
 
 (ert-deftest flywrite-test-non-429-error-keeps-hash ()
   "Any error keeps the hash checked to prevent automatic retry."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Test sentence.")
-    (let* ((hash (flywrite--content-hash 1 (point-max)))
-           (buf (current-buffer))
-           (status `(:error (error http 500))))
-      (puthash hash t flywrite--checked-sentences)
-      (setq flywrite--in-flight 1)
-      (with-temp-buffer
-        (insert "HTTP/1.1 500 Internal Server Error\r\n\r\n{}")
-        (goto-char (point-min))
-        (flywrite--handle-response status buf 1 15 hash (current-time)))
-      ;; Hash stays checked — user can flywrite-clear to force recheck
-      (should (gethash hash flywrite--checked-sentences)))
-    (flywrite-mode -1)))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "Test sentence.")
+      (let* ((hash (flywrite--content-hash 1 (point-max)))
+             (buf (current-buffer))
+             (status `(:error (error http 500))))
+        (puthash hash t flywrite--checked-sentences)
+        (setq flywrite--in-flight 1)
+        (with-temp-buffer
+          (insert "HTTP/1.1 500 Internal Server Error\r\n\r\n{}")
+          (goto-char (point-min))
+          (flywrite--handle-response status buf 1 15 hash (current-time)))
+        ;; Hash stays checked — user can flywrite-clear to force recheck
+        (should (gethash hash flywrite--checked-sentences)))
+      (flywrite-mode -1))))
 
 ;;;; ---- Duplicate callback guard ----
 
 
 (ert-deftest flywrite-test-duplicate-callback-ignored ()
   "Second callback for the same request is ignored."
-  (with-temp-buffer
-    (text-mode)
-    (flywrite-mode 1)
-    (insert "Test sentence.")
-    (let* ((hash (flywrite--content-hash 1 (point-max)))
-           (buf (current-buffer))
-           (status `(:error (error connection-failed)))
-           (response-buf (generate-new-buffer " *test-response*")))
-      (puthash hash t flywrite--checked-sentences)
-      (setq flywrite--in-flight 1)
-      ;; First callback
-      (with-current-buffer response-buf
-        (insert "HTTP/1.1 500\r\n\r\n{}")
-        (goto-char (point-min))
-        (flywrite--handle-response status buf 1 15 hash (current-time)))
-      ;; in-flight should be 0 after first callback
-      (should (= flywrite--in-flight 0))
-      ;; Second callback on a new buffer (simulating url-retrieve behavior)
-      (let ((response-buf2 (generate-new-buffer " *test-response2*")))
-        (with-current-buffer response-buf2
-          ;; Mark as already handled (same flag the first callback sets)
-          (setq-local flywrite--response-handled t)
-          (flywrite--handle-response status buf 1 15 hash (current-time)))
-        ;; in-flight should still be 0, not -1
-        (should (= flywrite--in-flight 0))))
-    (flywrite-mode -1)))
-
-
-;;;; ---- Connection test ----
-
-
-(ert-deftest flywrite-test-connection-test-disabled ()
-  "Connection test is skipped when `flywrite-test-on-load' is nil."
-  (let ((flywrite-test-on-load nil)
-        (flywrite-api-url nil))
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
-      ;; Should not error even with no API URL
       (flywrite-mode 1)
-      (should flywrite-mode)
+      (insert "Test sentence.")
+      (let* ((hash (flywrite--content-hash 1 (point-max)))
+             (buf (current-buffer))
+             (status `(:error (error connection-failed)))
+             (response-buf (generate-new-buffer " *test-response*")))
+        (puthash hash t flywrite--checked-sentences)
+        (setq flywrite--in-flight 1)
+        ;; First callback
+        (with-current-buffer response-buf
+          (insert "HTTP/1.1 500\r\n\r\n{}")
+          (goto-char (point-min))
+          (flywrite--handle-response status buf 1 15 hash (current-time)))
+        ;; in-flight should be 0 after first callback
+        (should (= flywrite--in-flight 0))
+        ;; Second callback on a new buffer (simulating url-retrieve behavior)
+        (let ((response-buf2 (generate-new-buffer " *test-response2*")))
+          (with-current-buffer response-buf2
+            ;; Mark as already handled (same flag the first callback sets)
+            (setq-local flywrite--response-handled t)
+            (flywrite--handle-response status buf 1 15 hash (current-time)))
+          ;; in-flight should still be 0, not -1
+          (should (= flywrite--in-flight 0))))
       (flywrite-mode -1))))
 
 
-(ert-deftest flywrite-test-connection-test-no-url ()
-  "Connection test reports error when API URL is not set."
-  (let ((flywrite-test-on-load t)
-        (flywrite-api-url nil)
-        (last-msg nil))
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
-      (with-temp-buffer
-        (text-mode)
-        (flywrite-mode 1)
-        (should (string-match-p "Set flywrite-api-url before testing" last-msg))
-        (flywrite-mode -1)))))
+;;;; ---- Config validation ----
 
 
-(ert-deftest flywrite-test-connection-test-no-api-key-anthropic ()
-  "Connection test reports error when Anthropic API key is missing."
-  (let ((flywrite-test-on-load t)
-        (flywrite-api-url "https://api.anthropic.com/v1/messages")
+(ert-deftest flywrite-test-validate-config-no-url ()
+  "Config validation signals error when API URL is not set."
+  (let ((flywrite-api-url nil))
+    (with-temp-buffer
+      (text-mode)
+      (should-error (flywrite-mode 1) :type 'error)
+      (should-not flywrite-mode))))
+
+
+(ert-deftest flywrite-test-validate-config-no-api-key-anthropic ()
+  "Config validation signals error when Anthropic API key is missing."
+  (let ((flywrite-api-url "https://api.anthropic.com/v1/messages")
         (flywrite-api-key nil)
         (flywrite-api-key-file nil)
-        (process-environment (cons "FLYWRITE_API_KEY=" process-environment))
-        (last-msg nil))
+        (process-environment (cons "FLYWRITE_API_KEY=" process-environment)))
     (setenv "FLYWRITE_API_KEY" nil)
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
-      (with-temp-buffer
-        (text-mode)
-        (flywrite-mode 1)
-        (should (string-match-p "API key is not set" last-msg))
-        (flywrite-mode -1)))))
+    (with-temp-buffer
+      (text-mode)
+      (should-error (flywrite-mode 1) :type 'error)
+      (should-not flywrite-mode))))
 
 
-(ert-deftest flywrite-test-connection-test-no-api-key-openai ()
-  "Connection test reports error when OpenAI API key is missing."
-  (let ((flywrite-test-on-load t)
-        (flywrite-api-url "https://api.openai.com/v1/chat/completions")
+(ert-deftest flywrite-test-validate-config-no-api-key-openai ()
+  "Config validation signals error when OpenAI API key is missing."
+  (let ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
         (flywrite-api-key nil)
         (flywrite-api-key-file nil)
-        (process-environment (cons "FLYWRITE_API_KEY=" process-environment))
-        (last-msg nil))
+        (process-environment (cons "FLYWRITE_API_KEY=" process-environment)))
     (setenv "FLYWRITE_API_KEY" nil)
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
-      (with-temp-buffer
-        (text-mode)
-        (flywrite-mode 1)
-        (should (string-match-p "API key is not set" last-msg))
-        (flywrite-mode -1)))))
+    (with-temp-buffer
+      (text-mode)
+      (should-error (flywrite-mode 1) :type 'error)
+      (should-not flywrite-mode))))
 
 
-(ert-deftest flywrite-test-connection-test-no-api-key-gemini ()
-  "Connection test reports error when Gemini API key is missing."
-  (let ((flywrite-test-on-load t)
-        (flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
+(ert-deftest flywrite-test-validate-config-no-api-key-gemini ()
+  "Config validation signals error when Gemini API key is missing."
+  (let ((flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
         (flywrite-api-key nil)
         (flywrite-api-key-file nil)
-        (process-environment (cons "FLYWRITE_API_KEY=" process-environment))
-        (last-msg nil))
+        (process-environment (cons "FLYWRITE_API_KEY=" process-environment)))
     (setenv "FLYWRITE_API_KEY" nil)
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args) (setq last-msg (apply #'format fmt args)))))
-      (with-temp-buffer
-        (text-mode)
-        (flywrite-mode 1)
-        (should (string-match-p "API key is not set" last-msg))
-        (flywrite-mode -1)))))
+    (with-temp-buffer
+      (text-mode)
+      (should-error (flywrite-mode 1) :type 'error)
+      (should-not flywrite-mode))))
 
 
 ;;;; ---- End-to-end: mock API ----
@@ -837,7 +831,6 @@
   "End-to-end: insert error, check, verify diagnostic, fix, re-check, verify clear."
   (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
          (flywrite-api-key "sk-fake-test-key")
-         (flywrite-test-on-load nil)
          (flywrite-granularity 'sentence)
          (flywrite-idle-delay 0.1)
          (flywrite-eager nil)

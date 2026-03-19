@@ -72,7 +72,6 @@ Performance settings:
 (setq flywrite-max-concurrent 3)        ; max parallel API calls
 (setq flywrite-eager t)                 ; eagerly check around point
 (setq flywrite-debug t)                 ; log to *flywrite-log* (on by default)
-(setq flywrite-test-on-load t)          ; connection test on enable
 ```
 
 ### System prompt
@@ -239,8 +238,8 @@ Run any command with `M-x`. No default keybindings are provided — bind them yo
 
 ## Troubleshooting
 
-**Connection test fails on startup**
-Flywrite tests the API connection when the mode is enabled. If you see "connection test failed" in the minibuffer, check `*flywrite-log*` for details. Verify `flywrite-api-url` and your API key are configured correctly. To disable the startup test: `(setq flywrite-test-on-load nil)`.
+**Config validation error on startup**
+Flywrite validates configuration when the mode is enabled. If you see an error like "Set flywrite-api-url" or "API key is not set", check that `flywrite-api-url` and your API key are configured correctly. See [API providers](#api-providers) for setup instructions.
 
 **Nothing happens / no underlines appear**
 1. Make sure `flywrite-mode` is active: check the mode line for `flywrite`.

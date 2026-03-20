@@ -1,0 +1,79 @@
+[
+  {
+    "text": "The results don't support the hypothesis, and it's really not a big deal.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"it's\", \"reason\": \"Contraction - use 'it is' in formal writing\"}, {\"quote\": \"really not a big deal\", \"reason\": \"Informal language - be more specific about significance\"}]}",
+    "timestamp": "2026-03-20T01:27:21Z"
+  },
+  {
+    "text": "The weather was very extremely hot outside yesterday.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"very extremely\", \"reason\": \"Redundant intensifiers - use one or the other\"}]}",
+    "timestamp": "2026-03-20T01:26:16Z"
+  },
+  {
+    "text": "Between you and I, this project is more bigger than we expected.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"Between you and I\", \"reason\": \"Should be 'Between you and me' (objective case)\"}, {\"quote\": \"more bigger\", \"reason\": \"Double comparative - use either 'bigger' or 'much bigger'\"}]}",
+    "timestamp": "2026-03-20T01:26:14Z"
+  },
+  {
+    "text": "She could of finished the report on time if she would have started earlier.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"could of\", \"reason\": \"Should be 'could have' or 'could've'\"}, {\"quote\": \"would have started\", \"reason\": \"Should be 'had started' in conditional clause\"}]}",
+    "timestamp": "2026-03-20T01:26:12Z"
+  },
+  {
+    "text": "Each of the students need to submit there homework by Friday.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"Each of the students need\", \"reason\": \"Subject-verb disagreement: 'Each' is singular, use 'needs'\"}, {\"quote\": \"there homework\", \"reason\": \"Wrong word: use 'their' (possessive) not 'there' (location)\"}]}",
+    "timestamp": "2026-03-20T01:26:09Z"
+  },
+  {
+    "text": "Their going to the park later today, irregardless of the rain.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"Their going\", \"reason\": \"Should be 'They're going' (contraction) or 'They are going'\"}, {\"quote\": \"irregardless\", \"reason\": \"Non-standard word; use 'regardless'\"}]}",
+    "timestamp": "2026-03-20T01:26:07Z"
+  },
+  {
+    "text": "Him and his friend went to the store to buy some grocerys.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": [{\"quote\": \"Him and his friend\", \"reason\": \"Should be 'He and his friend' - use subject pronoun\"}, {\"quote\": \"grocerys\", \"reason\": \"Misspelled - should be 'groceries'\"}]}",
+    "timestamp": "2026-03-20T01:26:05Z"
+  },
+  {
+    "text": "The meeting was attended by all team members.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": []}",
+    "timestamp": "2026-03-20T01:26:03Z"
+  },
+  {
+    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": []}",
+    "timestamp": "2026-03-20T01:26:01Z"
+  },
+  {
+    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": []}",
+    "timestamp": "2026-03-20T01:26:00Z"
+  },
+  {
+    "text": "The quick brown fox jumped over the lazy dog.",
+    "model": "claude-sonnet-4-20250514",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "response": "{\"suggestions\": []}",
+    "timestamp": "2026-03-20T01:25:58Z"
+  }
+]

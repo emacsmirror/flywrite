@@ -79,7 +79,7 @@ emacs -Q --batch \
 
 # Prompt regression tests (requires API key or cached responses)
 echo "Prompt regression tests"
-FLYWRITE_API_KEY=$(cat ~/.flywrite-api-key) emacs -Q --batch \
+emacs -Q --batch \
  -l flywrite-mode.el \
  -l test-flywrite-prompt.el \
  -f ert-run-tests-batch-and-exit

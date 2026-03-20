@@ -5,7 +5,7 @@
 ;; Regression tests that send text samples to a real LLM API and verify
 ;; the system prompt catches (or does not flag) specific writing flaws.
 ;;
-;; Requires FLYWRITE_API_KEY env var or flywrite-api-key-file.
+;; Requires FLYWRITE_API_KEY_ANTHROPIC env var.
 ;; Results are cached in test-flywrite-prompt-cache.json to avoid
 ;; redundant API calls.
 ;;
@@ -112,7 +112,8 @@
 (defun flywrite-prompt-test--call-api (text)
   "Send TEXT to the LLM API synchronously and return the response string.
 Uses flywrite configuration for URL, model, API key, and system prompt."
-  (let* ((api-key (flywrite--get-api-key))
+  (let* ((api-key (or (getenv "FLYWRITE_API_KEY_ANTHROPIC")
+                      (error "No API key.  Set FLYWRITE_API_KEY_ANTHROPIC")))
          (request (flywrite--build-request text api-key))
          (url-request-method "POST")
          (url-request-extra-headers (cdr request))
@@ -161,8 +162,6 @@ Uses flywrite configuration for URL, model, API key, and system prompt."
 Uses Anthropic as the default provider."
   (unless flywrite-api-url
     (setq flywrite-api-url "https://api.anthropic.com/v1/messages"))
-  (unless (flywrite--get-api-key)
-    (error "No API key configured.  Set FLYWRITE_API_KEY or flywrite-api-key-file"))
   (setq flywrite-api-temperature 0))
 
 ;;;; ---- Core test runner ----

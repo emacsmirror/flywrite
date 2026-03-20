@@ -192,8 +192,7 @@ RESPONSE may be a JSON string (from API) or an alist (from cache)."
   "Set up flywrite API configuration for prompt tests.
 Uses Anthropic as the default provider."
   (unless flywrite-api-url
-    (setq flywrite-api-url "https://api.anthropic.com/v1/messages"))
-  (setq flywrite-api-temperature 0))
+    (setq flywrite-api-url "https://api.anthropic.com/v1/messages")))
 
 ;;;; ---- Core test runner ----
 

@@ -3,7 +3,8 @@
 ;;; Commentary:
 
 ;; Regression tests that send text samples to a real LLM API and verify
-;; the system prompt catches (or does not flag) specific writing flaws.
+;; each system prompt catches (or does not flag) specific writing flaws.
+;; Every prompt style in `flywrite--prompt-alist' is tested.
 ;;
 ;; Requires FLYWRITE_API_KEY_ANTHROPIC env var.
 ;; Results are cached in test-flywrite-prompt-cache.json to avoid
@@ -22,39 +23,41 @@
 (require 'url-http)
 
 ;;;; ---- Test inputs ----
-
 (defconst flywrite-prompt-test--inputs
   '((:text "The quick brown fox jumped over the lazy dog."
      :description "clean"
-     :expected 0)
+     :expected ((prose . 0) (academic . 0)))
     (:text "The morning light filtered through the curtains and cast long shadows across the floor."
      :description "clean"
-     :expected 0)
+     :expected ((prose . 0) (academic . 0)))
     (:text "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper."
      :description "clean"
-     :expected 0)
+     :expected ((prose . 0) (academic . 0)))
     (:text "The results don't support the hypothesis, and it's really not a big deal."
      :description "contractions and informal language in academic writing"
-     :expected 2)
+     :expected ((prose . 1) (academic . 2)))
     (:text "Him and his friend went to the store to buy some grocerys."
      :description "pronoun case error and misspelling"
-     :expected 2)
+     :expected ((prose . 2) (academic . 2)))
     (:text "Their going to the park later today, irregardless of the rain."
      :description "wrong homophone and nonstandard word"
-     :expected 2)
+     :expected ((prose . 2) (academic . 2)))
     (:text "Each of the students need to submit there homework by Friday."
      :description "subject-verb disagreement and wrong homophone"
-     :expected 2)
+     :expected ((prose . 2) (academic . 2)))
     (:text "She could of finished the report on time if she would have started earlier."
      :description "could of and would have"
-     :expected 2)
+     :expected ((prose . 2) (academic . 2)))
     (:text "Between you and I, this project is more bigger than we expected."
      :description "pronoun case and double comparative"
-     :expected 2)
+     :expected ((prose . 2) (academic . 2)))
     (:text "The weather was very extremely hot outside yesterday."
      :description "redundant intensifiers"
-     :expected 1))
-  "Test inputs: each entry is a plist with :text, :description, :expected.")
+     :expected ((prose . 1) (academic . 1))))
+  "Test inputs: each entry is a plist with :text, :description, :expected.
+:expected is an alist mapping each prompt style symbol to its
+expected suggestion count, e.g., ((prose . 0) (academic . 2)).
+Every style in `flywrite--prompt-alist' must have an entry.")
 
 ;;;; ---- Cache ----
 
@@ -166,20 +169,24 @@ Uses Anthropic as the default provider."
 
 ;;;; ---- Core test runner ----
 
-(defun flywrite-prompt-test--run-one (input)
-  "Run a single prompt test for INPUT plist.
+(defun flywrite-prompt-test--run-one (input style)
+  "Run a single prompt test for INPUT plist with prompt STYLE.
+STYLE is a symbol from `flywrite--prompt-alist' (e.g., `prose' or `academic').
 Returns the number of suggestions from the API (using cache when available)."
   (flywrite-prompt-test--configure)
-  (let* ((text (plist-get input :text))
+  (let* ((flywrite-system-prompt style)
+         (text (plist-get input :text))
          (model (flywrite--effective-model))
          (prompt-hash (flywrite-prompt-test--prompt-hash))
          (cached (flywrite-prompt-test--cache-lookup text model prompt-hash))
          (response-text
           (if cached
               (progn
-                (message "  [cached] %s" (plist-get input :description))
+                (message "  [cached] [%s] %s"
+                         style (plist-get input :description))
                 (alist-get "response" cached nil nil #'equal))
-            (message "  [api] %s" (plist-get input :description))
+            (message "  [api] [%s] %s"
+                     style (plist-get input :description))
             (let ((resp (flywrite-prompt-test--call-api text)))
               (flywrite-prompt-test--cache-store text model prompt-hash resp)
               resp)))
@@ -189,32 +196,41 @@ Returns the number of suggestions from the API (using cache when available)."
 ;;;; ---- ERT tests ----
 
 (defun flywrite-prompt-test--run-all ()
-  "Run all prompt regression tests.  Return list of (input count pass) triples."
+  "Run all prompt regression tests for every prompt style.
+Return list of (style input expected count pass) tuples."
   (flywrite-prompt-test--load-cache)
   (let ((results nil))
-    (dolist (input flywrite-prompt-test--inputs)
-      (let* ((expected (plist-get input :expected))
-             (count (flywrite-prompt-test--run-one input))
-             (pass (= count expected)))
-        (push (list input count pass) results)))
+    (dolist (style-entry flywrite--prompt-alist)
+      (let ((style (car style-entry)))
+        (message "Testing prompt: %s" style)
+        (dolist (input flywrite-prompt-test--inputs)
+          (let* ((expected-alist (plist-get input :expected))
+                 (expected (alist-get style expected-alist 'missing))
+                 (_ (when (eq expected 'missing)
+                      (error "No expected count for style `%s' in input: %s"
+                             style (plist-get input :description))))
+                 (count (flywrite-prompt-test--run-one input style))
+                 (pass (= count expected)))
+            (push (list style input expected count pass) results)))))
     (nreverse results)))
 
 (ert-deftest flywrite-prompt-test-regression ()
-  "Verify system prompt correctly catches or ignores writing flaws.
-Each sample is sent to the LLM and must return the exact expected
-number of suggestions."
+  "Verify system prompts correctly catch or ignore writing flaws.
+Each sample is sent to the LLM under every prompt style and must
+return the exact expected number of suggestions."
   (let ((results (flywrite-prompt-test--run-all))
         (failures nil))
     (dolist (result results)
-      (let* ((input (nth 0 result))
-             (count (nth 1 result))
-             (pass (nth 2 result))
+      (let* ((style (nth 0 result))
+             (input (nth 1 result))
+             (expected (nth 2 result))
+             (count (nth 3 result))
+             (pass (nth 4 result))
              (text (plist-get input :text))
-             (desc (plist-get input :description))
-             (expected (plist-get input :expected)))
+             (desc (plist-get input :description)))
         (unless pass
-          (push (format "FAIL: %s\n  text: %s\n  expected: %d, got: %d"
-                        desc text expected count)
+          (push (format "FAIL [%s]: %s\n  text: %s\n  expected: %d, got: %d"
+                        style desc text expected count)
                 failures))))
     (when failures
       (ert-fail (mapconcat #'identity (nreverse failures) "\n\n")))))

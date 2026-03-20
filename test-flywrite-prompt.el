@@ -104,13 +104,14 @@ Every style in `flywrite--prompt-alist' must have an entry.")
   "Return MD5 hash of the current system prompt string."
   (md5 (flywrite--get-system-prompt)))
 
-(defun flywrite-prompt-test--cache-lookup (text model prompt-hash)
-  "Find a cache entry matching TEXT, MODEL, and PROMPT-HASH."
+(defun flywrite-prompt-test--cache-lookup (text model prompt-hash temperature)
+  "Find a cache entry matching TEXT, MODEL, PROMPT-HASH, and TEMPERATURE."
   (cl-find-if
    (lambda (entry)
      (and (equal (alist-get "text" entry nil nil #'equal) text)
           (equal (alist-get "model" entry nil nil #'equal) model)
-          (equal (alist-get "prompt_hash" entry nil nil #'equal) prompt-hash)))
+          (equal (alist-get "prompt_hash" entry nil nil #'equal) prompt-hash)
+          (equal (alist-get "temperature" entry nil nil #'equal) temperature)))
    flywrite-prompt-test--cache))
 
 (defun flywrite-prompt-test--parse-response-string (response-text)
@@ -127,13 +128,15 @@ Empty arrays are preserved as empty vectors so `json-encode' writes []."
       (setf (alist-get 'suggestions parsed) []))
     parsed))
 
-(defun flywrite-prompt-test--cache-store (text model prompt-hash response)
-  "Store a cache entry for TEXT, MODEL, PROMPT-HASH, and RESPONSE.
+(defun flywrite-prompt-test--cache-store (text model prompt-hash temperature
+                                               response)
+  "Store a cache entry for TEXT, MODEL, PROMPT-HASH, TEMPERATURE, and RESPONSE.
 RESPONSE is the raw API response string; it is parsed to JSON for storage."
   (let* ((response-obj (flywrite-prompt-test--parse-response-string response))
          (entry `(("text" . ,text)
                   ("model" . ,model)
                   ("prompt_hash" . ,prompt-hash)
+                  ("temperature" . ,temperature)
                   ("response" . ,response-obj)
                   ("timestamp" . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t)))))
     (push entry flywrite-prompt-test--cache)
@@ -204,8 +207,10 @@ Returns the number of suggestions from the API (using cache when available)."
   (let* ((flywrite-system-prompt style)
          (text (plist-get input :text))
          (model (flywrite--effective-model))
+         (temperature flywrite-api-temperature)
          (prompt-hash (flywrite-prompt-test--prompt-hash))
-         (cached (flywrite-prompt-test--cache-lookup text model prompt-hash))
+         (cached (flywrite-prompt-test--cache-lookup
+                  text model prompt-hash temperature))
          (response-text
           (if cached
               (progn
@@ -215,7 +220,8 @@ Returns the number of suggestions from the API (using cache when available)."
             (message "  [api] [%s] %s"
                      style (plist-get input :description))
             (let ((resp (flywrite-prompt-test--call-api text)))
-              (flywrite-prompt-test--cache-store text model prompt-hash resp)
+              (flywrite-prompt-test--cache-store
+               text model prompt-hash temperature resp)
               resp)))
          (suggestions (flywrite-prompt-test--parse-suggestions response-text)))
     (length suggestions)))

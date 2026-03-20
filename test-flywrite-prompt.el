@@ -35,7 +35,7 @@
      :expected 0)
     (:text "The results don't support the hypothesis, and it's really not a big deal."
      :description "contractions and informal language in academic writing"
-     :expected 1)
+     :expected 2)
     (:text "Him and his friend went to the store to buy some grocerys."
      :description "pronoun case error and misspelling"
      :expected 2)
@@ -195,17 +195,14 @@ Returns the number of suggestions from the API (using cache when available)."
     (dolist (input flywrite-prompt-test--inputs)
       (let* ((expected (plist-get input :expected))
              (count (flywrite-prompt-test--run-one input))
-             ;; Pass if: expected=0 and got 0, or expected>0 and got >=1
-             (pass (if (= expected 0)
-                       (= count 0)
-                     (>= count 1))))
+             (pass (= count expected)))
         (push (list input count pass) results)))
     (nreverse results)))
 
 (ert-deftest flywrite-prompt-test-regression ()
   "Verify system prompt correctly catches or ignores writing flaws.
-Each sample is sent to the LLM.  Clean text must get 0 suggestions.
-Flawed text must get >= 1 suggestion."
+Each sample is sent to the LLM and must return the exact expected
+number of suggestions."
   (let ((results (flywrite-prompt-test--run-all))
         (failures nil))
     (dolist (result results)
@@ -216,10 +213,8 @@ Flawed text must get >= 1 suggestion."
              (desc (plist-get input :description))
              (expected (plist-get input :expected)))
         (unless pass
-          (push (format "FAIL: %s\n  text: %s\n  expected: %s, got: %d"
-                        desc text
-                        (if (= expected 0) "0" ">=1")
-                        count)
+          (push (format "FAIL: %s\n  text: %s\n  expected: %d, got: %d"
+                        desc text expected count)
                 failures))))
     (when failures
       (ert-fail (mapconcat #'identity (nreverse failures) "\n\n")))))

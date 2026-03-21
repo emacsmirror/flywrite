@@ -53,7 +53,24 @@
      :expected ((prose . 2) (academic . 2)))
     (:text "The weather was very extremely hot outside yesterday."
      :description "redundant intensifiers"
-     :expected ((prose . 1) (academic . 1))))
+     :expected ((prose . 1) (academic . 1)))
+    ;; From samples/test08.txt
+    (:text "The optimization had a significant affect on runtime performance."
+     :description "affect/effect, weasel word"
+     :expected ((prose . 1) (academic . 2)))
+    (:text "The benchmarks show the approach is more efficient then brute force search."
+     :description "then/than word-choice error"
+     :expected ((prose . 1) (academic . 1)))
+    (:text "We feel the results are promising."
+     :description "subjective, vague"
+     :expected ((prose . 0) (academic . 2)))
+    ;; From samples/test07.txt
+    (:text "The students who was in the program recieved there certificates at the ceremony last friday."
+     :description "subject-verb agreement, misspelling, homophone, and capitalization"
+     :expected ((prose . 4) (academic . 4)))
+    (:text "So, the results clearly show that this has a positive impact on stuff."
+     :description "informal transition, subjective qualifier, ambiguous \"this\", vague term"
+     :expected ((prose . 1) (academic . 4))))
   "Test inputs: each entry is a plist with :text, :description, :expected.
 :expected is an alist mapping each prompt style symbol to its
 expected suggestion count, e.g., ((prose . 0) (academic . 2)).

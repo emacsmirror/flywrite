@@ -177,6 +177,78 @@
       "timestamp": "2026-03-21T01:20:07Z"
     },
     {
+      "text": "So, the results clearly show that this has a positive impact on stuff.",
+      "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "stuff",
+            "reason": "Vague term - specify what is being impacted"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:53Z"
+    },
+    {
+      "text": "So, the results clearly show that this has a positive impact on stuff.",
+      "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "So,",
+            "reason": "Informal transition - prefer 'Therefore' or 'The results'"
+          },
+          {
+            "quote": "clearly show",
+            "reason": "Subjective qualifier - state what the results demonstrate"
+          },
+          {
+            "quote": "this",
+            "reason": "Ambiguous pronoun - specify what 'this' refers to"
+          },
+          {
+            "quote": "stuff",
+            "reason": "Vague term - specify what is being impacted"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:27:05Z"
+    },
+    {
+      "text": "The benchmarks show the approach is more efficient then brute force search.",
+      "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "more efficient then brute force",
+            "reason": "Should be 'than' not 'then' for comparison"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:48Z"
+    },
+    {
+      "text": "The benchmarks show the approach is more efficient then brute force search.",
+      "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "then",
+            "reason": "Should be 'than' for comparison"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:57Z"
+    },
+    {
       "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
       "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
       "model": "claude-sonnet-4-20250514",
@@ -195,6 +267,40 @@
         "suggestions": []
       },
       "timestamp": "2026-03-21T01:20:06Z"
+    },
+    {
+      "text": "The optimization had a significant affect on runtime performance.",
+      "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "affect",
+            "reason": "Should be 'effect' (noun) not 'affect' (verb)"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:46Z"
+    },
+    {
+      "text": "The optimization had a significant affect on runtime performance.",
+      "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "significant",
+            "reason": "Weasel word - specify the magnitude or provide statistical context"
+          },
+          {
+            "quote": "affect",
+            "reason": "Wrong word - should be 'effect' (noun) not 'affect' (verb)"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:56Z"
     },
     {
       "text": "The quick brown fox jumped over the lazy dog.",
@@ -249,6 +355,60 @@
         ]
       },
       "timestamp": "2026-03-21T01:20:09Z"
+    },
+    {
+      "text": "The students who was in the program recieved there certificates at the ceremony last friday.",
+      "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "who was",
+            "reason": "Subject-verb disagreement: 'students' is plural, needs 'were'"
+          },
+          {
+            "quote": "recieved",
+            "reason": "Spelling error: should be 'received'"
+          },
+          {
+            "quote": "there",
+            "reason": "Wrong word: should be 'their' (possessive)"
+          },
+          {
+            "quote": "friday",
+            "reason": "Capitalization: 'Friday' should be capitalized"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:52Z"
+    },
+    {
+      "text": "The students who was in the program recieved there certificates at the ceremony last friday.",
+      "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "who was",
+            "reason": "Subject-verb disagreement: 'students' is plural, use 'who were'"
+          },
+          {
+            "quote": "recieved",
+            "reason": "Spelling error: should be 'received'"
+          },
+          {
+            "quote": "there",
+            "reason": "Wrong word: should be 'their' (possessive)"
+          },
+          {
+            "quote": "friday",
+            "reason": "Capitalization error: 'Friday' should be capitalized"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:27:02Z"
     },
     {
       "text": "The weather was very extremely hot outside yesterday.",
@@ -317,6 +477,35 @@
         ]
       },
       "timestamp": "2026-03-21T01:20:14Z"
+    },
+    {
+      "text": "We feel the results are promising.",
+      "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": []
+      },
+      "timestamp": "2026-03-21T01:26:49Z"
+    },
+    {
+      "text": "We feel the results are promising.",
+      "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "We feel",
+            "reason": "Replace subjective feeling with objective evidence or data"
+          },
+          {
+            "quote": "promising",
+            "reason": "Vague qualifier - specify what makes results promising"
+          }
+        ]
+      },
+      "timestamp": "2026-03-21T01:26:59Z"
     }
   ]
 }

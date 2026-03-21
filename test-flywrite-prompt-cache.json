@@ -1,182 +1,8 @@
 [
   {
-    "text": "The weather was very extremely hot outside yesterday.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "very extremely",
-          "reason": "Redundant intensifiers - use one or the other"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:56:11Z"
-  },
-  {
     "text": "Between you and I, this project is more bigger than we expected.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Between you and I",
-          "reason": "Should be 'Between you and me' (objective case)"
-        },
-        {
-          "quote": "more bigger",
-          "reason": "Double comparative - use either 'bigger' or 'much bigger'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:56:09Z"
-  },
-  {
-    "text": "She could of finished the report on time if she would have started earlier.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "could of",
-          "reason": "Should be 'could have' or 'could've'"
-        },
-        {
-          "quote": "would have started",
-          "reason": "Should be 'had started' in conditional clause"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:56:06Z"
-  },
-  {
-    "text": "Each of the students need to submit there homework by Friday.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Each of the students need",
-          "reason": "Subject-verb disagreement: 'Each' is singular, use 'needs'"
-        },
-        {
-          "quote": "there homework",
-          "reason": "Wrong word: use 'their' (possessive) not 'there' (location)"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:56:04Z"
-  },
-  {
-    "text": "Their going to the park later today, irregardless of the rain.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Their going",
-          "reason": "Should be 'They're going' (contraction) or 'They are going'"
-        },
-        {
-          "quote": "irregardless",
-          "reason": "Non-standard word; use 'regardless'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:56:01Z"
-  },
-  {
-    "text": "Him and his friend went to the store to buy some grocerys.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Him and his friend",
-          "reason": "Should be 'He and his friend' - use subject pronoun"
-        },
-        {
-          "quote": "grocerys",
-          "reason": "Misspelled - should be 'groceries'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:55:59Z"
-  },
-  {
-    "text": "The results don't support the hypothesis, and it's really not a big deal.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "it's",
-          "reason": "Contraction - use 'it is' in formal writing"
-        },
-        {
-          "quote": "really not a big deal",
-          "reason": "Informal language - be more specific about significance"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:55:57Z"
-  },
-  {
-    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T15:55:54Z"
-  },
-  {
-    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T15:55:52Z"
-  },
-  {
-    "text": "The quick brown fox jumped over the lazy dog.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "temperature": 0,
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T15:55:50Z"
-  },
-  {
-    "text": "The weather was very extremely hot outside yesterday.",
-    "model": "claude-sonnet-4-20250514",
     "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "temperature": 0,
-    "response": {
-      "suggestions": [
-        {
-          "quote": "very extremely hot",
-          "reason": "Redundant intensifiers - use either 'very hot' or 'extremely hot'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T15:55:49Z"
-  },
-  {
-    "text": "Between you and I, this project is more bigger than we expected.",
     "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
     "temperature": 0,
     "response": {
       "suggestions": [
@@ -193,28 +19,28 @@
     "timestamp": "2026-03-20T15:55:47Z"
   },
   {
-    "text": "She could of finished the report on time if she would have started earlier.",
+    "text": "Between you and I, this project is more bigger than we expected.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
     "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
     "temperature": 0,
     "response": {
       "suggestions": [
         {
-          "quote": "could of",
-          "reason": "Should be 'could have' or 'could've'"
+          "quote": "Between you and I",
+          "reason": "Should be 'Between you and me' (objective case)"
         },
         {
-          "quote": "would have started",
-          "reason": "Should be 'had started' in conditional clause"
+          "quote": "more bigger",
+          "reason": "Double comparative - use either 'bigger' or 'much bigger'"
         }
       ]
     },
-    "timestamp": "2026-03-20T15:55:45Z"
+    "timestamp": "2026-03-20T15:56:09Z"
   },
   {
     "text": "Each of the students need to submit there homework by Friday.",
-    "model": "claude-sonnet-4-20250514",
     "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
     "temperature": 0,
     "response": {
       "suggestions": [
@@ -231,28 +57,28 @@
     "timestamp": "2026-03-20T15:55:43Z"
   },
   {
-    "text": "Their going to the park later today, irregardless of the rain.",
+    "text": "Each of the students need to submit there homework by Friday.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
     "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
     "temperature": 0,
     "response": {
       "suggestions": [
         {
-          "quote": "Their going",
-          "reason": "Should be 'They're' (they are) not possessive 'Their'"
+          "quote": "Each of the students need",
+          "reason": "Subject-verb disagreement: 'Each' is singular, use 'needs'"
         },
         {
-          "quote": "irregardless",
-          "reason": "Non-standard word; use 'regardless' instead"
+          "quote": "there homework",
+          "reason": "Wrong word: use 'their' (possessive) not 'there' (location)"
         }
       ]
     },
-    "timestamp": "2026-03-20T15:55:40Z"
+    "timestamp": "2026-03-20T15:56:04Z"
   },
   {
     "text": "Him and his friend went to the store to buy some grocerys.",
-    "model": "claude-sonnet-4-20250514",
     "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
     "temperature": 0,
     "response": {
       "suggestions": [
@@ -269,9 +95,126 @@
     "timestamp": "2026-03-20T15:55:38Z"
   },
   {
-    "text": "The results don't support the hypothesis, and it's really not a big deal.",
+    "text": "Him and his friend went to the store to buy some grocerys.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
     "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": [
+        {
+          "quote": "Him and his friend",
+          "reason": "Should be 'He and his friend' - use subject pronoun"
+        },
+        {
+          "quote": "grocerys",
+          "reason": "Misspelled - should be 'groceries'"
+        }
+      ]
+    },
+    "timestamp": "2026-03-20T15:55:59Z"
+  },
+  {
+    "text": "She could of finished the report on time if she would have started earlier.",
     "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": [
+        {
+          "quote": "could of",
+          "reason": "Should be 'could have' or 'could've'"
+        },
+        {
+          "quote": "would have started",
+          "reason": "Should be 'had started' in conditional clause"
+        }
+      ]
+    },
+    "timestamp": "2026-03-20T15:55:45Z"
+  },
+  {
+    "text": "She could of finished the report on time if she would have started earlier.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": [
+        {
+          "quote": "could of",
+          "reason": "Should be 'could have' or 'could've'"
+        },
+        {
+          "quote": "would have started",
+          "reason": "Should be 'had started' in conditional clause"
+        }
+      ]
+    },
+    "timestamp": "2026-03-20T15:56:06Z"
+  },
+  {
+    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
+    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": []
+    },
+    "timestamp": "2026-03-20T15:55:34Z"
+  },
+  {
+    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": []
+    },
+    "timestamp": "2026-03-20T15:55:54Z"
+  },
+  {
+    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
+    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": []
+    },
+    "timestamp": "2026-03-20T15:55:33Z"
+  },
+  {
+    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": []
+    },
+    "timestamp": "2026-03-20T15:55:52Z"
+  },
+  {
+    "text": "The quick brown fox jumped over the lazy dog.",
+    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": []
+    },
+    "timestamp": "2026-03-20T15:55:32Z"
+  },
+  {
+    "text": "The quick brown fox jumped over the lazy dog.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
+    "response": {
+      "suggestions": []
+    },
+    "timestamp": "2026-03-20T15:55:50Z"
+  },
+  {
+    "text": "The results don't support the hypothesis, and it's really not a big deal.",
+    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
     "temperature": 0,
     "response": {
       "suggestions": [
@@ -284,143 +227,10 @@
     "timestamp": "2026-03-20T15:55:36Z"
   },
   {
-    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "temperature": 0,
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T15:55:34Z"
-  },
-  {
-    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "temperature": 0,
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T15:55:33Z"
-  },
-  {
-    "text": "The quick brown fox jumped over the lazy dog.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "temperature": 0,
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T15:55:32Z"
-  },
-  {
-    "text": "The weather was very extremely hot outside yesterday.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "very extremely",
-          "reason": "Redundant intensifiers - use one or the other"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T12:55:10Z"
-  },
-  {
-    "text": "Between you and I, this project is more bigger than we expected.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Between you and I",
-          "reason": "Should be 'Between you and me' (objective case)"
-        },
-        {
-          "quote": "more bigger",
-          "reason": "Double comparative - use either 'bigger' or 'much bigger'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T12:55:08Z"
-  },
-  {
-    "text": "She could of finished the report on time if she would have started earlier.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "could of",
-          "reason": "Should be 'could have' or 'could've'"
-        },
-        {
-          "quote": "would have started",
-          "reason": "Should be 'had started' in conditional clause"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T12:55:06Z"
-  },
-  {
-    "text": "Each of the students need to submit there homework by Friday.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Each of the students need",
-          "reason": "Subject-verb disagreement: 'Each' is singular, use 'needs'"
-        },
-        {
-          "quote": "there homework",
-          "reason": "Wrong word: use 'their' (possessive) not 'there' (location)"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T12:55:03Z"
-  },
-  {
-    "text": "Their going to the park later today, irregardless of the rain.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Their going",
-          "reason": "Should be 'They're going' (contraction) or 'They are going'"
-        },
-        {
-          "quote": "irregardless",
-          "reason": "Non-standard word; use 'regardless'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T12:55:01Z"
-  },
-  {
-    "text": "Him and his friend went to the store to buy some grocerys.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Him and his friend",
-          "reason": "Should be 'He and his friend' - use subject pronoun"
-        },
-        {
-          "quote": "grocerys",
-          "reason": "Misspelled - should be 'groceries'"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T12:54:58Z"
-  },
-  {
     "text": "The results don't support the hypothesis, and it's really not a big deal.",
-    "model": "claude-sonnet-4-20250514",
     "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
     "response": {
       "suggestions": [
         {
@@ -433,39 +243,13 @@
         }
       ]
     },
-    "timestamp": "2026-03-20T12:54:56Z"
-  },
-  {
-    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T12:54:53Z"
-  },
-  {
-    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T12:54:51Z"
-  },
-  {
-    "text": "The quick brown fox jumped over the lazy dog.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T12:54:50Z"
+    "timestamp": "2026-03-20T15:55:57Z"
   },
   {
     "text": "The weather was very extremely hot outside yesterday.",
-    "model": "claude-sonnet-4-20250514",
     "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
     "response": {
       "suggestions": [
         {
@@ -474,66 +258,28 @@
         }
       ]
     },
-    "timestamp": "2026-03-20T13:03:36Z"
+    "timestamp": "2026-03-20T15:55:49Z"
   },
   {
-    "text": "Between you and I, this project is more bigger than we expected.",
+    "text": "The weather was very extremely hot outside yesterday.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
     "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "temperature": 0,
     "response": {
       "suggestions": [
         {
-          "quote": "Between you and I",
-          "reason": "Should be 'Between you and me' (objective case)"
-        },
-        {
-          "quote": "more bigger",
-          "reason": "Double comparative - use either 'bigger' or 'much bigger'"
+          "quote": "very extremely",
+          "reason": "Redundant intensifiers - use one or the other"
         }
       ]
     },
-    "timestamp": "2026-03-20T13:03:34Z"
-  },
-  {
-    "text": "She could of finished the report on time if she would have started earlier.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "could of",
-          "reason": "Should be 'could have' or 'could've'"
-        },
-        {
-          "quote": "would have started",
-          "reason": "Should be 'had started' in conditional clause"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T13:03:32Z"
-  },
-  {
-    "text": "Each of the students need to submit there homework by Friday.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "Each of the students need",
-          "reason": "Subject-verb disagreement: 'Each' is singular, use 'needs'"
-        },
-        {
-          "quote": "there homework",
-          "reason": "Wrong word: should be 'their' (possessive) not 'there' (location)"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T13:03:29Z"
+    "timestamp": "2026-03-20T15:56:11Z"
   },
   {
     "text": "Their going to the park later today, irregardless of the rain.",
-    "model": "claude-sonnet-4-20250514",
     "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0,
     "response": {
       "suggestions": [
         {
@@ -546,65 +292,25 @@
         }
       ]
     },
-    "timestamp": "2026-03-20T13:03:27Z"
+    "timestamp": "2026-03-20T15:55:40Z"
   },
   {
-    "text": "Him and his friend went to the store to buy some grocerys.",
+    "text": "Their going to the park later today, irregardless of the rain.",
+    "prompt_hash": "ce41ef248aeebca6465673e41474dc99",
     "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
+    "temperature": 0,
     "response": {
       "suggestions": [
         {
-          "quote": "Him and his friend",
-          "reason": "Should be 'He and his friend' - use subject pronoun"
+          "quote": "Their going",
+          "reason": "Should be 'They're going' (contraction) or 'They are going'"
         },
         {
-          "quote": "grocerys",
-          "reason": "Misspelled - should be 'groceries'"
+          "quote": "irregardless",
+          "reason": "Non-standard word; use 'regardless'"
         }
       ]
     },
-    "timestamp": "2026-03-20T13:03:24Z"
-  },
-  {
-    "text": "The results don't support the hypothesis, and it's really not a big deal.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "response": {
-      "suggestions": [
-        {
-          "quote": "it's really not a big deal",
-          "reason": "Informal tone inappropriate for academic/scientific writing"
-        }
-      ]
-    },
-    "timestamp": "2026-03-20T13:03:22Z"
-  },
-  {
-    "text": "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T13:03:20Z"
-  },
-  {
-    "text": "The morning light filtered through the curtains and cast long shadows across the floor.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T13:03:18Z"
-  },
-  {
-    "text": "The quick brown fox jumped over the lazy dog.",
-    "model": "claude-sonnet-4-20250514",
-    "prompt_hash": "4eeb375d7dd552db86eed3c04466fb9c",
-    "response": {
-      "suggestions": []
-    },
-    "timestamp": "2026-03-20T13:03:17Z"
+    "timestamp": "2026-03-20T15:56:01Z"
   }
 ]

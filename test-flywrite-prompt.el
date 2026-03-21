@@ -81,23 +81,56 @@ Every style in `flywrite--prompt-alist' must have an entry.")
               (error nil))
           nil)))
 
+(defconst flywrite-prompt-test--key-order
+  '("text" "prompt_hash" "model" "temperature" "response" "timestamp")
+  "Canonical key order for cache entry fields.")
+
+(defun flywrite-prompt-test--value< (a b)
+  "Return non-nil if A sorts before B.
+nil sorts before numbers, numbers before strings.
+Numbers compare with `<', strings with `string<'."
+  (cond
+   ((equal a b) nil)
+   ((null a) t)
+   ((null b) nil)
+   ((and (numberp a) (numberp b)) (< a b))
+   ((and (stringp a) (stringp b)) (string< a b))
+   ((numberp a) t)
+   (t nil)))
+
+(defun flywrite-prompt-test--entry< (a b)
+  "Return non-nil if cache entry A sorts before B.
+Compares by text, prompt-hash, model, then temperature."
+  (let ((keys '("text" "prompt_hash" "model" "temperature")))
+    (cl-loop for key in keys
+             for va = (alist-get key a nil nil #'equal)
+             for vb = (alist-get key b nil nil #'equal)
+             if (flywrite-prompt-test--value< va vb) return t
+             if (flywrite-prompt-test--value< vb va) return nil
+             finally return nil)))
+
+(defun flywrite-prompt-test--normalize-entry (entry)
+  "Return ENTRY with keys in canonical order and nil suggestions as [].
+Keys follow `flywrite-prompt-test--key-order'."
+  (let* ((resp (alist-get "response" entry nil nil #'equal))
+         (sugs (and resp (or (alist-get 'suggestions resp)
+                             (cdr (assoc "suggestions" resp))))))
+    (when (and resp (null sugs))
+      (let ((cell (or (assoc 'suggestions resp)
+                      (assoc "suggestions" resp))))
+        (when cell (setcdr cell [])))))
+  (mapcar (lambda (key)
+            (cons key (alist-get key entry nil nil #'equal)))
+          flywrite-prompt-test--key-order))
+
 (defun flywrite-prompt-test--save-cache ()
-  "Write cache to `flywrite-prompt-test--cache-file'."
+  "Write cache to `flywrite-prompt-test--cache-file'.
+Entries are sorted and keys are in canonical order for stable diffs."
   (with-temp-file flywrite-prompt-test--cache-file
-    ;; Normalize nil suggestions to empty vectors so json-encode
-    ;; writes [] instead of null.
-    (let ((normalized
-           (mapcar (lambda (entry)
-                     (let* ((resp (alist-get "response" entry nil nil #'equal))
-                            (sugs (and resp (or (alist-get 'suggestions resp)
-                                                (cdr (assoc "suggestions" resp))))))
-                       (when (and resp (null sugs))
-                         (let ((cell (or (assoc 'suggestions resp)
-                                         (assoc "suggestions" resp))))
-                           (when cell (setcdr cell []))))
-                       entry))
-                   flywrite-prompt-test--cache)))
-      (insert (json-encode normalized)))
+    (let ((sorted (sort (mapcar #'flywrite-prompt-test--normalize-entry
+                                flywrite-prompt-test--cache)
+                        #'flywrite-prompt-test--entry<)))
+      (insert (json-encode sorted)))
     (json-pretty-print (point-min) (point-max))))
 
 (defun flywrite-prompt-test--prompt-hash ()

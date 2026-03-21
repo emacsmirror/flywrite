@@ -69,17 +69,27 @@ Every style in `flywrite--prompt-alist' must have an entry.")
 (defvar flywrite-prompt-test--cache nil
   "In-memory cache: list of alists read from the cache file.")
 
+(defvar flywrite-prompt-test--prompts nil
+  "In-memory prompt table: alist mapping prompt hash to prompt text.")
+
 (defun flywrite-prompt-test--load-cache ()
   "Load cache from `flywrite-prompt-test--cache-file'."
-  (setq flywrite-prompt-test--cache
-        (if (file-readable-p flywrite-prompt-test--cache-file)
-            (condition-case nil
-                (let ((json-array-type 'list)
-                      (json-object-type 'alist)
-                      (json-key-type 'string))
-                  (json-read-file flywrite-prompt-test--cache-file))
-              (error nil))
-          nil)))
+  (let ((data (and (file-readable-p flywrite-prompt-test--cache-file)
+                   (condition-case nil
+                       (let ((json-array-type 'list)
+                             (json-object-type 'alist)
+                             (json-key-type 'string))
+                         (json-read-file flywrite-prompt-test--cache-file))
+                     (error nil)))))
+    (if (and data (listp data) (assoc "entries" data))
+        (setq flywrite-prompt-test--prompts
+              (let ((p (alist-get "prompts" data nil nil #'equal)))
+                (if (listp p) p nil))
+              flywrite-prompt-test--cache
+              (alist-get "entries" data nil nil #'equal))
+      ;; Legacy flat array format.
+      (setq flywrite-prompt-test--prompts nil
+            flywrite-prompt-test--cache (if (listp data) data nil)))))
 
 (defconst flywrite-prompt-test--key-order
   '("text" "prompt_hash" "model" "temperature" "response" "timestamp")
@@ -125,17 +135,20 @@ Keys follow `flywrite-prompt-test--key-order'."
 
 (defun flywrite-prompt-test--save-cache ()
   "Write cache to `flywrite-prompt-test--cache-file'.
-Entries are sorted and keys are in canonical order for stable diffs."
+Entries are sorted and keys are in canonical order for stable diffs.
+Prompts are sorted by hash."
   (with-temp-file flywrite-prompt-test--cache-file
-    (let ((sorted (sort (mapcar #'flywrite-prompt-test--normalize-entry
-                                flywrite-prompt-test--cache)
-                        #'flywrite-prompt-test--entry<)))
-      (insert (json-encode sorted)))
+    (let* ((sorted-entries (sort (mapcar #'flywrite-prompt-test--normalize-entry
+                                         flywrite-prompt-test--cache)
+                                 #'flywrite-prompt-test--entry<))
+           (sorted-prompts (or (sort (copy-sequence
+                                     flywrite-prompt-test--prompts)
+                                    (lambda (a b) (string< (car a) (car b))))
+                              (make-hash-table)))
+           (obj `(("prompts" . ,sorted-prompts)
+                  ("entries" . ,sorted-entries))))
+      (insert (json-encode obj)))
     (json-pretty-print (point-min) (point-max))))
-
-(defun flywrite-prompt-test--prompt-hash ()
-  "Return MD5 hash of the current system prompt string."
-  (md5 (flywrite--get-system-prompt)))
 
 (defun flywrite-prompt-test--cache-lookup (text model prompt-hash temperature)
   "Find a cache entry matching TEXT, MODEL, PROMPT-HASH, and TEMPERATURE."
@@ -162,8 +175,10 @@ Empty arrays are preserved as empty vectors so `json-encode' writes []."
     parsed))
 
 (defun flywrite-prompt-test--cache-store (text model prompt-hash temperature
-                                               response)
-  "Store a cache entry for TEXT, MODEL, PROMPT-HASH, TEMPERATURE, and RESPONSE.
+                                               prompt-text response)
+  "Store a cache entry and register the prompt text.
+TEXT, MODEL, PROMPT-HASH, and TEMPERATURE form the cache key.
+PROMPT-TEXT is the system prompt string (stored in the prompts table).
 RESPONSE is the raw API response string; it is parsed to JSON for storage."
   (let* ((response-obj (flywrite-prompt-test--parse-response-string response))
          (entry `(("text" . ,text)
@@ -172,6 +187,9 @@ RESPONSE is the raw API response string; it is parsed to JSON for storage."
                   ("temperature" . ,temperature)
                   ("response" . ,response-obj)
                   ("timestamp" . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t)))))
+    (setf (alist-get prompt-hash flywrite-prompt-test--prompts
+                     nil nil #'equal)
+          prompt-text)
     (push entry flywrite-prompt-test--cache)
     (flywrite-prompt-test--save-cache)))
 
@@ -241,7 +259,8 @@ Returns the number of suggestions from the API (using cache when available)."
          (text (plist-get input :text))
          (model (flywrite--effective-model))
          (temperature flywrite-api-temperature)
-         (prompt-hash (flywrite-prompt-test--prompt-hash))
+         (prompt-text (flywrite--get-system-prompt))
+         (prompt-hash (md5 prompt-text))
          (cached (flywrite-prompt-test--cache-lookup
                   text model prompt-hash temperature))
          (response-text
@@ -254,7 +273,7 @@ Returns the number of suggestions from the API (using cache when available)."
                      style (plist-get input :description))
             (let ((resp (flywrite-prompt-test--call-api text)))
               (flywrite-prompt-test--cache-store
-               text model prompt-hash temperature resp)
+               text model prompt-hash temperature prompt-text resp)
               resp)))
          (suggestions (flywrite-prompt-test--parse-suggestions response-text)))
     (length suggestions)))

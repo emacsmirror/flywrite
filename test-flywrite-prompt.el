@@ -180,14 +180,8 @@ Prompts are sorted by hash."
 (defun flywrite-prompt-test--parse-response-string (response-text)
   "Parse RESPONSE-TEXT (a JSON string, possibly wrapped in markdown) to alist.
 Empty arrays are preserved as empty vectors so `json-encode' writes []."
-  (let* ((clean (replace-regexp-in-string
-                 "\\`[ \t\n]*```\\(?:json\\)?[ \t]*\n?" ""
-                 (replace-regexp-in-string
-                  "\n?```[ \t\n]*\\'" "" response-text)))
-         (json-array-type 'list)
-         (parsed (json-read-from-string clean))
-         (suggestions (alist-get 'suggestions parsed)))
-    (when (null suggestions)
+  (let ((parsed (flywrite--parse-response-json response-text)))
+    (when (null (alist-get 'suggestions parsed))
       (setf (alist-get 'suggestions parsed) []))
     parsed))
 
@@ -220,32 +214,19 @@ Uses flywrite configuration for URL, model, API key, and system prompt."
          (request (flywrite--build-request text api-key))
          (url-request-method "POST")
          (url-request-extra-headers (cdr request))
-         (url-request-data (encode-coding-string (car request) 'utf-8))
-         (response-buf (url-retrieve-synchronously flywrite-api-url t nil 30)))
+         (url-request-data
+          (encode-coding-string (car request) 'utf-8))
+         (response-buf
+          (url-retrieve-synchronously flywrite-api-url t nil 30)))
     (unless response-buf
       (error "API call returned no response buffer"))
     (unwind-protect
         (with-current-buffer response-buf
-          (goto-char (point-min))
-          (unless (re-search-forward "\r?\n\r?\n" nil t)
-            (error "Malformed HTTP response"))
-          (let* ((json-data (json-read))
-                 (text-content
-                  (if (flywrite--anthropic-api-p)
-                      (let* ((content (alist-get 'content json-data))
-                             (block (and (arrayp content)
-                                         (> (length content) 0)
-                                         (aref content 0))))
-                        (and block (alist-get 'text block)))
-                    (let* ((choices (alist-get 'choices json-data))
-                           (choice (and (arrayp choices)
-                                        (> (length choices) 0)
-                                        (aref choices 0)))
-                           (message (and choice (alist-get 'message choice))))
-                      (and message (alist-get 'content message))))))
-            (unless text-content
-              (error "No text in API response: %S" json-data))
-            text-content))
+          (cl-destructuring-bind (_status _json resp-text)
+              (flywrite--extract-response-text)
+            (unless resp-text
+              (error "No text in API response"))
+            resp-text))
       (kill-buffer response-buf))))
 
 (defun flywrite-prompt-test--parse-suggestions (response)

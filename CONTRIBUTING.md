@@ -71,6 +71,8 @@ See [`samples/README.md`](samples/README.md) for file descriptions.
 - All state is buffer-local
 - Async HTTP via `url-retrieve` (no external dependencies)
 - Diagnostics tagged with `[flywrite]` suffix
+- Two newlines between functions
+
 
 ## Documentation
 

@@ -25,8 +25,9 @@ Requirements: Emacs 27.1+, an LLM API key (see
 [README](README.md) for provider setup). API key is optional for local
 providers like Ollama.
 
-The entire package lives in `flywrite-mode.el`. Tests are in
-`test-flywrite.el`. Sample files in `samples/` are for manual
+The entire package lives in `flywrite-mode.el`. Unit tests are in
+`test-flywrite.el`. Prompt regression tests are in
+`test-flywrite-prompt.el`. Sample files in `samples/` are for manual
 end-to-end testing.
 
 ## Testing
@@ -43,6 +44,34 @@ The `./test` script runs these checks:
 4. **elisp-lint** -- installed from MELPA on first run
 5. **Nesting depth** -- custom `lint-nesting.el`, max depth of 6
 6. **ERT unit tests** -- `test-flywrite.el`
+7. **Prompt regression tests** -- `test-flywrite-prompt.el`
+
+### Prompt regression tests
+
+`test-flywrite-prompt.el` sends text samples to a real LLM API and
+verifies that every prompt style in `flywrite--prompt-alist` catches
+(or does not flag) specific writing flaws.
+
+**API key setup.** Prompt regression tests require the
+`FLYWRITE_API_KEY_ANTHROPIC` environment variable.  One option is to set it in
+a `.env` file which is git-ignored.
+
+```bash
+# .env
+export FLYWRITE_API_KEY_ANTHROPIC=FIXME
+```
+
+```bash
+source .env
+./test
+```
+
+**Cache.** Results are cached in `test-flywrite-prompt-cache.json` to
+avoid redundant API calls. The cache key includes the input text,
+model, temperature, and prompt hash, so entries are automatically
+invalidated when a system prompt changes.  Stale entries are pruned on
+each run.  Do not edit the cache file manually -- it is managed by the
+test runner.
 
 Byte-compile standalone:
 ```bash

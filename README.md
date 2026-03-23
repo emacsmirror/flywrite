@@ -60,34 +60,19 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 
 
 ## Configuration
-Writing feedback settings:
-```elisp
-(setq flywrite-system-prompt 'academic) ; 'prose, 'academic, or custom string
-(setq flywrite-granularity 'sentence)   ; 'sentence or 'paragraph, sent to LLM
-```
-
-Performance settings:
-```elisp
-(setq flywrite-idle-delay 1.5)          ; seconds before checking
-(setq flywrite-max-concurrent 3)        ; max parallel API calls
-(setq flywrite-eager t)                 ; eagerly check around point
-(setq flywrite-debug t)                 ; log to *flywrite-log* (on by default)
-```
 
 ### System prompt
-`flywrite-system-prompt` controls the instructions sent with every API call. Select a built-in style or provide a custom string. Built-in styles:
+`flywrite-system-prompt` controls the instructions sent with every API call. Select a built-in style or provide a custom string.
 
-| Symbol | Description |
-|--------|-------------|
-| `prose` | General grammar, clarity, and style feedback |
-| `academic` | Everything in `prose` plus rules for formal academic writing (the default) |
+- `'prose`: grammar, clarity, and style feedback
+- `'academic` (default): adds rules for formal academic writing: contractions, hedging, weasel words, etc.
 
-Select a built-in style:
 ```elisp
-(setq flywrite-system-prompt 'prose)  ; or 'academic (the default)
+(setq flywrite-system-prompt 'academic)  ; or 'prose
 ```
 
-Or provide a custom string. The prompt must instruct the model to return JSON with a `suggestions` array where each element has `quote` and `reason` keys:
+**Custom prompt:** Copy the academic prompt below and modify the rules at the end. Keep the JSON format section unchanged, flywrite needs it to parse responses.
+
 ```elisp
 (setq flywrite-system-prompt
   "You are a writing assistant. Analyze the text for grammar, clarity, and style.
@@ -104,21 +89,35 @@ Rules:
 - Keep reasons under 12 words
 - One entry per distinct issue
 - Do not flag correct text
-- Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content")
-```
-
-The `academic` style adds these rules to the `prose` prompt:
+- Ignore markup and formatting commands (LaTeX, HTML, Org-mode, etc.) -- only evaluate the prose content
+-- ADD, REMOVE, OR EDIT RULES BELOW --
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging (e.g., 'a lot', 'things', 'stuff', 'really')
-- Flag unsupported opinions (e.g., 'I think X is better') — state evidence instead
+- Flag unsupported opinions (e.g., 'I think X is better') -- state evidence instead
 - Flag unsupported superlatives (e.g., 'the best', 'the most important')
 - Flag wordiness and nominalizations (e.g., 'make an adjustment' -> 'adjust')
 - Flag subjective qualifiers (e.g., 'obviously', 'clearly', 'of course')
-- Flag ambiguous 'this/it/they' pronouns without antecedents (e.g., 'This is important' — this what?)
+- Flag ambiguous 'this/it/they' pronouns without antecedents (e.g., 'This is important' -- this what?)
 - Flag weasel words (e.g., 'significantly' without statistical context, 'often', 'usually' without citation)
-- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus') — prefer 'Therefore', 'Additionally', 'Moreover'
+- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus') -- prefer 'Therefore', 'Additionally', 'Moreover'")
+```
 
 **Note on prompt length:** Longer system prompts increase token usage and cost per API call. Anthropic's prompt caching (`flywrite-enable-caching`, on by default) mitigates this by caching the system prompt across calls, but other providers may not offer caching. If cost is a concern, keep your system prompt concise.
+
+### Settings
+Writing feedback settings:
+```elisp
+(setq flywrite-system-prompt 'academic) ; 'prose, 'academic, or custom string
+(setq flywrite-granularity 'sentence)   ; 'sentence or 'paragraph, sent to LLM
+```
+
+Performance settings:
+```elisp
+(setq flywrite-idle-delay 1.5)          ; seconds before checking
+(setq flywrite-max-concurrent 3)        ; max parallel API calls
+(setq flywrite-eager t)                 ; eagerly check around point
+(setq flywrite-debug t)                 ; log to *flywrite-log* (on by default)
+```
 
 ### API providers
 Configure an API.  Flywrite natively supports the Anthropic Messages API and the OpenAI Chat Completions API, which includes Google Gemini and Ollama.  The model is optional, by default it is auto-detected from the API URL.

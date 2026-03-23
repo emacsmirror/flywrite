@@ -104,15 +104,15 @@ Manual end-to-end testing: open a file in `samples/`, run
 See [`samples/README.md`](samples/README.md) for file descriptions.
 
 ## Code style
-
+- Follow [Emacs Lisp conventions](https://www.gnu.org/software/emacs/manual/html_node/elisp/Tips.html) and the [Emacs Lisp Style Guide](https://github.com/bbatsov/emacs-lisp-style-guide).
 - 80-character line width
 - Logical nesting depth: prefer 4--5 levels, hard limit of 6
   (enforced by `lint-nesting.el`)
-- Package prefix: `flywrite-` (public), `flywrite--` (internal)
-- All state is buffer-local
+
+
+Design
 - Async HTTP via `url-retrieve` (no external dependencies)
 - Diagnostics tagged with `[flywrite]` suffix
-- Two newlines between functions
 
 
 ## Documentation

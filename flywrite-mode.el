@@ -3,6 +3,7 @@
 ;; Copyright (C) 2026 Andrew DeOrio
 
 ;; Author: Andrew DeOrio <awdeorio@umich.edu>
+;; Maintainer: Andrew DeOrio <awdeorio@umich.edu>
 ;; Version: 0.1.1
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: text, wp

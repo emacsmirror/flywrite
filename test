@@ -76,3 +76,10 @@ emacs -Q --batch \
   -l test-flywrite.el \
   -f ert-run-tests-batch-and-exit \
   2>&1 | grep -v '^flywrite:' >&2
+
+# Prompt regression tests (requires API key or cached responses)
+echo "Prompt regression tests"
+emacs -Q --batch \
+ -l flywrite-mode.el \
+ -l test-flywrite-prompt.el \
+ -f ert-run-tests-batch-and-exit

@@ -63,7 +63,7 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 Writing feedback settings:
 ```elisp
 (setq flywrite-system-prompt 'academic) ; 'prose, 'academic, or custom string
-(setq flywrite-granularity 'sentence)   ; 'sentence or 'paragraph
+(setq flywrite-granularity 'sentence)   ; 'sentence or 'paragraph, sent to LLM
 ```
 
 Performance settings:
@@ -261,6 +261,9 @@ A `unit` refers to a sentence or paragraph which is [configurable](#configuratio
 
 ## Troubleshooting
 
+**Check the logs**
+Check *flywrite-log* for API calls, responses, and events.
+
 **Config validation error on startup**
 Flywrite validates API configuration on enable. If you see an error like "Set flywrite-api-url" or "API key is not set", see [API providers](#api-providers) for setup instructions.
 
@@ -281,6 +284,3 @@ Check that `flywrite-api-url` matches your provider and that your API key has cr
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, 
 and code style.
-
-## Debugging
-Debug logging is on by default. Check *flywrite-log* for API calls, responses, and events.

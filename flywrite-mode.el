@@ -781,16 +781,22 @@ When stale, removes the old hash and re-dirties the unit."
     t))
 
 
+(defun flywrite--parse-response-json (text)
+  "Parse TEXT as JSON, stripping markdown code fences if present.
+TEXT is the raw LLM response string.  Returns the parsed alist."
+  (let* ((json-array-type 'list)
+         (clean (replace-regexp-in-string
+                 "\\`[ \t\n]*```\\(?:json\\)?[ \t]*\n?" ""
+                 (replace-regexp-in-string
+                  "\n?```[ \t\n]*\\'" "" text))))
+    (json-read-from-string clean)))
+
+
 (defun flywrite--apply-suggestions (buf beg end hash text)
   "Parse TEXT as suggestion JSON and create diagnostics in BUF.
 BEG, END, HASH identify the checked region."
-  ;; Strip markdown code fences that some LLMs wrap around JSON.
   (condition-case parse-err
-      (let* ((clean-text (replace-regexp-in-string
-                          "\\`[ \t\n]*```\\(?:json\\)?[ \t]*\n?" ""
-                          (replace-regexp-in-string
-                           "\n?```[ \t\n]*\\'" "" text)))
-             (parsed (json-read-from-string clean-text))
+      (let* ((parsed (flywrite--parse-response-json text))
              (suggestions (alist-get 'suggestions parsed)))
         (flywrite--log "Suggestions: %d for [%d-%d] hash=%s"
                        (length suggestions) beg end hash)

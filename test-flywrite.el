@@ -253,11 +253,11 @@
       (should-not flywrite--idle-timer))))
 
 
-;;;; ---- Sentence boundaries with test file content (test00.txt) ----
+;;;; ---- Sentence boundaries with test file content (example.txt) ----
 
 
 (ert-deftest flywrite-test-sentence-bounds-plain-text ()
-  "Sentence detection in multi-sentence plain text (like test00.txt)."
+  "Sentence detection in multi-sentence plain text (like example.txt)."
   (let ((flywrite-granularity 'sentence))
     (with-temp-buffer
       (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys. The weather was very extremely hot outside yesterday.")
@@ -276,7 +276,7 @@
 
 
 (ert-deftest flywrite-test-collect-units-plain-text ()
-  "Collect all sentences from multi-sentence plain text (test00.txt)."
+  "Collect all sentences from multi-sentence plain text (example.txt)."
   (let ((flywrite-granularity 'sentence)
         (flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
@@ -288,11 +288,11 @@
       (flywrite-mode -1))))
 
 
-;;;; ---- Paragraph boundaries with multi-paragraph content (test01.md) ----
+;;;; ---- Paragraph boundaries with multi-paragraph content (markdown-simple.md) ----
 
 
 (ert-deftest flywrite-test-paragraph-bounds-multi ()
-  "Paragraph detection in multi-paragraph text (like test01.md)."
+  "Paragraph detection in multi-paragraph text (like markdown-simple.md)."
   (let ((flywrite-granularity 'paragraph))
     (with-temp-buffer
       (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store.\n\nTheir going to the park later today, irregardless of the rain. Each of the students need to submit there homework.\n\nThe morning light filtered through the curtains and cast long shadows across the floor.")
@@ -323,11 +323,11 @@
       (flywrite-mode -1))))
 
 
-;;;; ---- LaTeX content (test02.tex, test04.tex) ----
+;;;; ---- LaTeX content (latex-simple.tex, latex-itemize.tex) ----
 
 
 (ert-deftest flywrite-test-sentence-bounds-latex ()
-  "Sentence detection works inside LaTeX document body (test02.tex)."
+  "Sentence detection works inside LaTeX document body (latex-simple.tex)."
   (let ((flywrite-granularity 'sentence))
     (with-temp-buffer
       (insert "\\begin{document}\n\nThe quick brown fox jumpted over the lazy dog. Him and his friend went to the store.\n\n\\end{document}")

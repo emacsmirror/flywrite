@@ -54,7 +54,7 @@
     (:text "The weather was very extremely hot outside yesterday."
      :description "redundant intensifiers"
      :expected ((prose . 1) (academic . 1)))
-    ;; From samples/test08.txt
+    ;; From samples/example.txt
     (:text "The optimization had a significant affect on runtime performance."
      :description "affect/effect, weasel word"
      :expected ((prose . 1) (academic . 2)))
@@ -64,7 +64,7 @@
     (:text "We feel the results are promising."
      :description "subjective, vague"
      :expected ((prose . 0) (academic . 2)))
-    ;; From samples/test07.txt
+    ;; From samples/text-general-and-academic.txt
     (:text "The students who was in the program recieved there certificates at the ceremony last friday."
      :description "subject-verb agreement, misspelling, homophone, and capitalization"
      :expected ((prose . 4) (academic . 4)))

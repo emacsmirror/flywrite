@@ -1,5 +1,8 @@
 # Contributing
 
+Please open an issue to discuss your idea before submitting a pull
+request.
+
 ## Development install
 
 Clone.

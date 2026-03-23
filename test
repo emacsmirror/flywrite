@@ -62,6 +62,19 @@ emacs -Q --batch \
   --no-fill-column \
   flywrite-mode.el
 
+# Lint: package-lint (MELPA submission checks)
+echo "Lint: package-lint"
+emacs -Q --batch \
+  --eval "(require 'package)" \
+  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+  --eval "(package-initialize)" \
+  --eval "(unless (package-installed-p 'package-lint)
+            (package-refresh-contents)
+            (package-install 'package-lint))" \
+  --eval "(require 'package-lint)" \
+  -f package-lint-batch-and-exit \
+  flywrite-mode.el
+
 # Lint: nesting depth (control-flow forms only, max depth 6)
 echo "Lint: nesting depth"
 check_quiet \

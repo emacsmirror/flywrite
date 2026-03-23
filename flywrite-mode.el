@@ -223,6 +223,11 @@ without needing to edit."
   "Map from \"beg-end\" region key to the last-known content hash.
 Used by `after-change' to find and remove stale checked-unit entries.")
 
+(defvar flywrite--response-handled nil
+  "Non-nil when a `url-retrieve' callback has already been processed.
+Set buffer-locally in HTTP response buffers to guard against
+duplicate callbacks.")
+
 
 ;;;; ---- Constants ----
 

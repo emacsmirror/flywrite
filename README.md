@@ -28,7 +28,7 @@ Add to your init file (Emacs 30+):
 ```
 
 <details>
-<summary>Manual install (Emacs 27–29)</summary>
+<summary>Manual install (Emacs 29)</summary>
 
 Clone.
 ```bash

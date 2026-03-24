@@ -39,7 +39,7 @@ emacs -Q --batch --eval "(setq byte-compile-error-on-warn t)" -f batch-byte-comp
 emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
 ```
 
-**Requires:** Emacs 27.1+, an LLM API key (via `flywrite-api-key-file` (recommended), `flywrite-api-key`, or `FLYWRITE_API_KEY` env var). API key is optional for local providers like Ollama.
+**Requires:** Emacs 29.1+, an LLM API key (via `flywrite-api-key-file` (recommended), `flywrite-api-key`, or `FLYWRITE_API_KEY` env var). API key is optional for local providers like Ollama.
 
 **README consistency:** Default values shown in the README (including the system prompt) must match the source code in `flywrite-mode.el`. When changing defaults, update both.
 

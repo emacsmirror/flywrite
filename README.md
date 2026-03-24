@@ -256,14 +256,14 @@ As you move or type, flywrite will automatically run checks after a short idle d
 
 | Command                    | Description                      |
 |----------------------------|----------------------------------|
-| `flywrite-check-buffer`    | Check all units in buffer        |
-| `flywrite-check-region`    | Check all units in region        |
-| `flywrite-check-at-point`  | Check unit at point              |
+| `flywrite-check-buffer`    | Check all paragraphs in buffer   |
+| `flywrite-check-region`    | Check all paragraphs in region   |
+| `flywrite-check-at-point`  | Check paragraph at point         |
 | `flywrite-clear`           | Clear diagnostics and caches     |
 | `flymake-goto-next-error`  | Next diagnostic (flymake built-in) |
 | `flymake-goto-prev-error`  | Previous diagnostic (flymake built-in) |
 
-A `unit` refers to a paragraph of text.
+A `paragraph` is the unit of text sent to the LLM for checking.
 
 ## Troubleshooting
 

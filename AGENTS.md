@@ -52,9 +52,9 @@ Buffer edits
     │
     ▼
 after-change-functions
-    │  marks unit dirty
+    │  marks paragraph dirty
     ▼
-Dirty unit registry  ◄──── content deduplication (hash check)
+Dirty paragraph registry  ◄──── content deduplication (hash check)
     │
     │  idle timer fires (1.5s)
     ▼
@@ -74,9 +74,9 @@ flymake-popon / echo area  →  inline popups near flagged text
 ```
 
 Key design decisions:
-- **Unit granularity**: a "unit" is one paragraph of text sent per API call
-- **Content deduplication**: MD5 hashing prevents redundant API calls; checked hashes stored in `flywrite--checked-units` hash table
-- **Stale response guard**: responses discarded if unit changed while call was in-flight, then re-dirtied for re-check
+- **Paragraph granularity**: a paragraph is the text sent per API call
+- **Content deduplication**: MD5 hashing prevents redundant API calls; checked hashes stored in `flywrite--checked-paragraphs` hash table
+- **Stale response guard**: responses discarded if paragraph changed while call was in-flight, then re-dirtied for re-check
 - **Flymake backend**: `flywrite-flymake` registered in `flymake-diagnostic-functions`; handles eglot coexistence by re-adding itself via `eglot-managed-mode-hook`
 - **Prompt caching**: system prompt uses `cache_control` with `"type": "ephemeral"` for cost reduction
 - **Mode-aware suppression**: skips code blocks, comments, and other non-prose regions via font-lock face inspection
@@ -86,7 +86,7 @@ Key design decisions:
 ## Emacs Lisp Conventions
 
 - All async HTTP via `url-retrieve` (no external dependencies)
-- All state is buffer-local (dirty registry, checked-units hash table, in-flight counter, pending queue, report-fn)
+- All state is buffer-local (dirty registry, checked-paragraphs hash table, in-flight counter, pending queue, report-fn)
 - Package prefix: `flywrite-` (public), `flywrite--` (internal)
 - No default keybindings; commands available via `M-x`
 - Diagnostics are tagged with `[flywrite]` suffix in messages

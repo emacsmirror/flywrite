@@ -103,7 +103,7 @@ When nil, the model is auto-detected from `flywrite-api-url'."
 
 
 (defcustom flywrite-idle-delay 1.5
-  "Seconds of idle time before checking dirty units."
+  "Seconds of idle time before checking dirty paragraphs."
   :type 'number
   :group 'flywrite)
 
@@ -126,9 +126,9 @@ When nil, the model is auto-detected from `flywrite-api-url'."
   :group 'flywrite)
 
 
-(defcustom flywrite-long-unit-threshold 500
-  "Max characters per unit.
-Longer units are passed through without truncation or splitting."
+(defcustom flywrite-long-paragraph-threshold 500
+  "Max characters per paragraph.
+Longer paragraphs are passed through without truncation or splitting."
   :type 'integer
   :group 'flywrite)
 
@@ -182,11 +182,11 @@ without needing to edit."
 
 
 (defvar-local flywrite--dirty-registry nil
-  "List of (beg end hash) triples for units needing a check.")
+  "List of (beg end hash) triples for paragraphs needing a check.")
 
 
-(defvar-local flywrite--checked-units (make-hash-table :test 'equal)
-  "Hash table mapping content-hash → t for already-checked units.")
+(defvar-local flywrite--checked-paragraphs (make-hash-table :test 'equal)
+  "Hash table mapping content-hash -> t for already-checked paragraphs.")
 
 
 (defvar-local flywrite--in-flight 0
@@ -215,7 +215,7 @@ without needing to edit."
 
 (defvar-local flywrite--region-hashes (make-hash-table :test 'equal)
   "Map from \"beg-end\" region key to the last-known content hash.
-Used by `after-change' to find and remove stale checked-unit entries.")
+Used by `after-change' to find and remove stale checked-paragraph entries.")
 
 
 (defvar flywrite--response-handled nil
@@ -354,10 +354,10 @@ FORMAT-STRING and ARGS are passed to `format'."
               (apply #'format format-string args)
               "\n"))))
 
-;;;; ---- Unit boundary helpers ----
+;;;; ---- Paragraph boundary helpers ----
 
 
-(defun flywrite--unit-bounds-at-pos (pos)
+(defun flywrite--paragraph-bounds-at-pos (pos)
   "Return (beg . end) of the paragraph containing POS."
   (save-excursion
     (goto-char pos)
@@ -409,7 +409,7 @@ Checks font-lock faces and major mode."
 ;;;; ---- Change detection ----
 
 
-(defun flywrite--clear-unit-diagnostics (ubeg uend)
+(defun flywrite--clear-paragraph-diagnostics (ubeg uend)
   "Remove diagnostics overlapping UBEG..UEND and re-report."
   (when flywrite--diagnostics
     (let ((old-count (length flywrite--diagnostics)))
@@ -431,13 +431,13 @@ Checks font-lock faces and major mode."
   (let* ((region-key (format "%d-%d" ubeg uend))
          (old-hash (gethash region-key flywrite--region-hashes)))
     (when (and old-hash (not (string= old-hash hash)))
-      (remhash old-hash flywrite--checked-units))
+      (remhash old-hash flywrite--checked-paragraphs))
     (puthash region-key hash flywrite--region-hashes)))
 
 
-(defun flywrite--process-changed-unit (ubeg uend hash)
-  "Process a single changed unit bounded by UBEG..UEND with content HASH."
-  (flywrite--clear-unit-diagnostics ubeg uend)
+(defun flywrite--process-changed-paragraph (ubeg uend hash)
+  "Process a single changed paragraph bounded by UBEG..UEND with content HASH."
+  (flywrite--clear-paragraph-diagnostics ubeg uend)
   (flywrite--update-region-hash ubeg uend hash)
 
   ;; Remove stale pending queue entries for this region
@@ -449,7 +449,7 @@ Checks font-lock faces and major mode."
                       flywrite--pending-queue))
 
   ;; Skip if already checked with same hash
-  (unless (gethash hash flywrite--checked-units)
+  (unless (gethash hash flywrite--checked-paragraphs)
     ;; Remove any existing dirty entry for overlapping region
     (setq flywrite--dirty-registry
           (cl-remove-if (lambda (entry)
@@ -469,20 +469,20 @@ Checks font-lock faces and major mode."
 
 
 (defun flywrite--after-change (beg end _len)
-  "Hook for `after-change-functions'.  Mark dirty units.
+  "Hook for `after-change-functions'.  Mark dirty paragraphs.
 BEG and END are the changed region boundaries."
   (when flywrite-mode
     (condition-case err
-        (let* ((bounds1 (flywrite--unit-bounds-at-pos beg))
+        (let* ((bounds1 (flywrite--paragraph-bounds-at-pos beg))
                (bounds2 (when (and end (> end beg))
-                          (flywrite--unit-bounds-at-pos end)))
-               (units (if (and bounds2 (not (equal bounds1 bounds2)))
+                          (flywrite--paragraph-bounds-at-pos end)))
+               (paras (if (and bounds2 (not (equal bounds1 bounds2)))
                           (list bounds1 bounds2)
                         (list bounds1))))
 
-          ;; An edit near a unit boundary can dirty two units.
-          (dolist (bounds units)
-            (flywrite--process-changed-unit
+          ;; An edit near a paragraph boundary can dirty two paragraphs.
+          (dolist (bounds paras)
+            (flywrite--process-changed-paragraph
              (car bounds) (cdr bounds)
              (flywrite--content-hash (car bounds) (cdr bounds)))))
       (error
@@ -646,7 +646,7 @@ Signal an error if configuration is invalid, preventing mode activation."
 HASH is the content hash at time of dispatch for stale checking."
   ;; Skip if already checked (catches duplicates from queue)
   (when (with-current-buffer buf
-          (gethash hash flywrite--checked-units))
+          (gethash hash flywrite--checked-paragraphs))
     (flywrite--log "Skipping already-checked hash=%s" hash)
     (cl-return-from flywrite--send-request))
 
@@ -677,7 +677,7 @@ HASH is the content hash at time of dispatch for stale checking."
         ;; one is still in progress.
         (with-current-buffer buf
           (cl-incf flywrite--in-flight)
-          (puthash hash t flywrite--checked-units))
+          (puthash hash t flywrite--checked-paragraphs))
 
         ;; Fire async HTTP request; track the connection buffer for cleanup.
         (let ((conn-buf
@@ -788,17 +788,17 @@ or nil if no text could be extracted.  Signals on malformed HTTP."
 
 (defun flywrite--handle-stale-response (beg end hash)
   "Return non-nil if the response for BEG..END with HASH is stale.
-When stale, removes the old hash and re-dirties the unit."
+When stale, removes the old hash and re-dirties the paragraph."
   ;; The text may have changed while the API call was in-flight.
   ;; Detect this via hash mismatch and re-dirty instead of applying.
   (when (or (> end (point-max))
             (< beg (point-min))
             (not (string= hash (flywrite--content-hash beg end))))
     (flywrite--log "Stale response discarded: [%d-%d] hash=%s" beg end hash)
-    (remhash hash flywrite--checked-units)
+    (remhash hash flywrite--checked-paragraphs)
     (let ((new-hash (when (and (<= beg (point-max)) (<= end (point-max)))
                       (flywrite--content-hash beg end))))
-      (when (and new-hash (not (gethash new-hash flywrite--checked-units)))
+      (when (and new-hash (not (gethash new-hash flywrite--checked-paragraphs)))
         (push (list beg end new-hash) flywrite--dirty-registry)))
     t))
 
@@ -839,7 +839,7 @@ BEG, END, HASH identify the checked region."
 
         ;; Report to flymake and mark checked
         (flywrite--report-to-flymake hash)
-        (puthash hash t flywrite--checked-units))
+        (puthash hash t flywrite--checked-paragraphs))
     (error
      (flywrite--log "LLM unparseable response: %s hash=%s\n%s"
                     (error-message-string parse-err) hash text)
@@ -949,7 +949,7 @@ request.  START-TIME is used for latency logging."
 
 
 (defun flywrite--eager-scan ()
-  "Add units from the paragraph around point to the dirty registry."
+  "Add paragraphs around point to the dirty registry."
   ;; Allows reviewing existing text by moving the cursor through it,
   ;; without requiring an edit to trigger checking.
   (condition-case err
@@ -962,7 +962,7 @@ request.  START-TIME is used for latency logging."
           (skip-chars-backward " \t\n")
           (setq pend (point))
           (when (> pend pbeg)
-            (dolist (entry (flywrite--collect-units-in-region pbeg pend))
+            (dolist (entry (flywrite--collect-paragraphs-in-region pbeg pend))
               (push entry flywrite--dirty-registry)))))
     (error
      (flywrite--log "Error in eager scan: %s buf=%s"
@@ -977,7 +977,7 @@ SEEN is a hash table for deduplication within this batch."
   ;; been checked or seen in this batch, and the region is prose.
   (when (and (<= end (point-max))
              (>= beg (point-min))
-             (not (gethash hash flywrite--checked-units))
+             (not (gethash hash flywrite--checked-paragraphs))
              (not (gethash hash seen))
              (or (not (flywrite--should-skip-p beg))
                  (progn
@@ -1037,7 +1037,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
       (when (and (buffer-live-p buf)
                  (<= end (with-current-buffer buf (point-max)))
                  (not (gethash hash (buffer-local-value
-                                     'flywrite--checked-units buf))))
+                                     'flywrite--checked-paragraphs buf))))
         (flywrite--log "Draining queue: [%d-%d] hash=%s" beg end hash)
         (flywrite--send-request buf beg end hash)))))
 
@@ -1056,56 +1056,58 @@ Reports any existing diagnostics immediately so flymake can display them."
 ;;;; ---- Interactive commands ----
 
 
-(defun flywrite--try-collect-unit (ubeg uend seen)
-  "Return a (ubeg uend hash) triple if unit UBEG..UEND should be collected.
-SEEN is a hash table of already-visited unit starts.  Returns nil
-if the unit is empty, duplicate, already checked, or in a skip region."
+(defun flywrite--try-collect-paragraph (ubeg uend seen)
+  "Return a (ubeg uend hash) triple if paragraph UBEG..UEND should be collected.
+SEEN is a hash table of already-visited paragraph starts.  Returns nil
+if the paragraph is empty, duplicate, already checked, or in a skip region."
   (when (and (> uend ubeg)
              (not (gethash ubeg seen)))
     (puthash ubeg t seen)
     (let ((hash (flywrite--content-hash ubeg uend)))
-      (unless (or (gethash hash flywrite--checked-units)
+      (unless (or (gethash hash flywrite--checked-paragraphs)
                   (flywrite--should-skip-p ubeg))
         (list ubeg uend hash)))))
 
 
-(defun flywrite--collect-units-in-region (beg end)
-  "Collect all units in region BEG to END.
-Returns a list of (unit-beg unit-end hash) triples."
-  (let ((units nil)
+(defun flywrite--collect-paragraphs-in-region (beg end)
+  "Collect all paragraphs in region BEG to END.
+Returns a list of (beg end hash) triples."
+  (let ((paragraphs nil)
         (seen (make-hash-table :test 'eql)))
     (save-excursion
       (goto-char beg)
       (while (< (point) end)
-        (let* ((bounds (flywrite--unit-bounds-at-pos (point)))
+        (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
                (ubeg (car bounds))
                (uend (cdr bounds))
                (entry (when (<= uend end)
-                        (flywrite--try-collect-unit ubeg uend seen))))
-          (when entry (push entry units))
+                        (flywrite--try-collect-paragraph ubeg uend seen))))
+          (when entry (push entry paragraphs))
 
-          ;; Move past current unit and inter-unit whitespace
+          ;; Move past current paragraph and inter-paragraph whitespace
           (goto-char (max (1+ (point)) uend))
           (skip-chars-forward " \t\n"))))
-    (nreverse units)))
+    (nreverse paragraphs)))
 
 
 (defun flywrite-check-buffer ()
-  "Queue all units in the buffer for checking.
+  "Queue all paragraphs in the buffer for checking.
 Prompts for confirmation when the count exceeds
 `flywrite-check-confirm-threshold'."
   (interactive)
   (unless flywrite-mode
     (flywrite--log "check-buffer: mode not enabled")
     (user-error "Flywrite-mode is not enabled"))
-  (let ((units (flywrite--collect-units-in-region (point-min) (point-max))))
-    (when (and (> (length units) flywrite-check-confirm-threshold)
-               (not (y-or-n-p (format "Check %d units? " (length units)))))
-      (flywrite--log "check-buffer: cancelled by user (%d units)"
-                     (length units))
+  (let ((paras (flywrite--collect-paragraphs-in-region
+                (point-min) (point-max))))
+    (when (and (> (length paras) flywrite-check-confirm-threshold)
+               (not (y-or-n-p (format "Check %d paragraphs? "
+                                      (length paras)))))
+      (flywrite--log "check-buffer: cancelled by user (%d paragraphs)"
+                     (length paras))
       (user-error "Cancelled"))
     (let ((count 0))
-      (dolist (entry units)
+      (dolist (entry paras)
         (push entry flywrite--dirty-registry)
         (setq count (1+ count))
         (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
@@ -1117,12 +1119,12 @@ Prompts for confirmation when the count exceeds
                          (buffer-substring-no-properties
                           (nth 0 entry) (nth 1 entry)))
                         80 nil nil t)))
-      (flywrite--log "Queued %d units for buffer check" count)
-      (message "flywrite: queued %d units for checking" count))))
+      (flywrite--log "Queued %d paragraphs for buffer check" count)
+      (message "flywrite: queued %d paragraphs for checking" count))))
 
 
 (defun flywrite-check-region (beg end)
-  "Queue all units between BEG and END for checking.
+  "Queue all paragraphs between BEG and END for checking.
 Prompts for confirmation when the count exceeds
 `flywrite-check-confirm-threshold'."
   (interactive "r")
@@ -1132,17 +1134,18 @@ Prompts for confirmation when the count exceeds
   (unless (use-region-p)
     (flywrite--log "check-region: no active region")
     (user-error "No active region"))
-  (let ((units (flywrite--collect-units-in-region beg end)))
-    (when (and (> (length units) flywrite-check-confirm-threshold)
-               (not (y-or-n-p (format "Check %d units? " (length units)))))
-      (flywrite--log "check-region: cancelled by user (%d units)"
-                     (length units))
+  (let ((paras (flywrite--collect-paragraphs-in-region beg end)))
+    (when (and (> (length paras) flywrite-check-confirm-threshold)
+               (not (y-or-n-p (format "Check %d paragraphs? "
+                                      (length paras)))))
+      (flywrite--log "check-region: cancelled by user (%d paragraphs)"
+                     (length paras))
       (user-error "Cancelled"))
     (let ((count 0))
-      (dolist (entry units)
+      (dolist (entry paras)
 
         ;; Remove from checked so re-checks work
-        (remhash (nth 2 entry) flywrite--checked-units)
+        (remhash (nth 2 entry) flywrite--checked-paragraphs)
         (push entry flywrite--dirty-registry)
         (setq count (1+ count))
         (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
@@ -1154,8 +1157,9 @@ Prompts for confirmation when the count exceeds
                          (buffer-substring-no-properties
                           (nth 0 entry) (nth 1 entry)))
                         80 nil nil t)))
-      (flywrite--log "Queued %d units in region for checking" count)
-      (message "flywrite: queued %d units in region for checking" count)
+      (flywrite--log "Queued %d paragraphs in region for checking" count)
+      (message "flywrite: queued %d paragraphs in region for checking"
+               count)
 
       ;; Dispatch immediately rather than waiting for idle timer
       (flywrite--idle-timer-fn (current-buffer)))))
@@ -1167,7 +1171,7 @@ Prompts for confirmation when the count exceeds
   (unless flywrite-mode
     (flywrite--log "check-at-point: mode not enabled")
     (user-error "Flywrite-mode is not enabled"))
-  (let* ((bounds (flywrite--unit-bounds-at-pos (point)))
+  (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
          (ubeg (car bounds))
          (uend (cdr bounds))
          (hash (flywrite--content-hash ubeg uend)))
@@ -1176,10 +1180,11 @@ Prompts for confirmation when the count exceeds
       (user-error "Point is in a skipped region"))
 
     ;; Remove from checked so it gets re-checked even if seen before
-    (remhash hash flywrite--checked-units)
+    (remhash hash flywrite--checked-paragraphs)
     (push (list ubeg uend hash) flywrite--dirty-registry)
-    (flywrite--log "Queued unit at point [%d-%d] hash=%s" ubeg uend hash)
-    (message "flywrite: queued unit at point for checking")
+    (flywrite--log "Queued paragraph at point [%d-%d] hash=%s"
+                   ubeg uend hash)
+    (message "flywrite: queued paragraph at point for checking")
 
     ;; Dispatch immediately rather than waiting for idle timer
     (flywrite--idle-timer-fn (current-buffer))))
@@ -1191,7 +1196,7 @@ Prompts for confirmation when the count exceeds
   (setq flywrite--diagnostics nil)
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
-  (clrhash flywrite--checked-units)
+  (clrhash flywrite--checked-paragraphs)
   (clrhash flywrite--region-hashes)
   (when flywrite--report-fn
     (funcall flywrite--report-fn nil))
@@ -1239,7 +1244,7 @@ Eglot replaces the buffer-local value with only its own backend."
 
   ;; Initialize buffer-local state
   (setq flywrite--dirty-registry nil)
-  (setq flywrite--checked-units (make-hash-table :test 'equal))
+  (setq flywrite--checked-paragraphs (make-hash-table :test 'equal))
   (setq flywrite--region-hashes (make-hash-table :test 'equal))
   (setq flywrite--in-flight 0)
   (setq flywrite--pending-queue nil)
@@ -1323,7 +1328,7 @@ Eglot replaces the buffer-local value with only its own backend."
   ;; Reset all state
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
-  (clrhash flywrite--checked-units)
+  (clrhash flywrite--checked-paragraphs)
   (clrhash flywrite--region-hashes))
 
 (provide 'flywrite-mode)

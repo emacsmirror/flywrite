@@ -106,7 +106,7 @@
     (should-not (flywrite--get-api-key))))
 
 
-;;;; ---- Unit boundary detection ----
+;;;; ---- Paragraph boundary detection ----
 
 
 (ert-deftest flywrite-test-paragraph-bounds ()
@@ -117,20 +117,20 @@
                     "\nSecond paragraph.\n"
                     "\nThird paragraph."))
     ;; First paragraph
-    (let* ((bounds (flywrite--unit-bounds-at-pos 1))
+    (let* ((bounds (flywrite--paragraph-bounds-at-pos 1))
            (text (buffer-substring-no-properties
                   (car bounds) (cdr bounds))))
       (should (= (car bounds) 1))
       (should (string-match-p "First paragraph line one" text))
       (should-not (string-match-p "Second" text)))
     ;; Second paragraph
-    (let* ((bounds (flywrite--unit-bounds-at-pos 55))
+    (let* ((bounds (flywrite--paragraph-bounds-at-pos 55))
            (text (buffer-substring-no-properties
                   (car bounds) (cdr bounds))))
       (should (string= text "Second paragraph."))
       (should-not (string-match-p "First" text)))
     ;; Third paragraph
-    (let* ((bounds (flywrite--unit-bounds-at-pos (- (point-max) 1)))
+    (let* ((bounds (flywrite--paragraph-bounds-at-pos (- (point-max) 1)))
            (text (buffer-substring-no-properties
                   (car bounds) (cdr bounds))))
       (should (string= text "Third paragraph.")))))
@@ -147,16 +147,16 @@
                     "  Claude Code needed guidance with"
                     " code style, nesting depth, etc.,"
                     " as well as testing."))
-    (let ((units (flywrite--collect-units-in-region
+    (let ((paras (flywrite--collect-paragraphs-in-region
                   1 (point-max))))
-      (should (= (length units) 1)))))
+      (should (= (length paras) 1)))))
 
 
-(ert-deftest flywrite-test-unit-bounds-nonempty ()
-  "Unit bounds end >= beg (never negative-length)."
+(ert-deftest flywrite-test-paragraph-bounds-nonempty ()
+  "Paragraph bounds end >= beg (never negative-length)."
   (with-temp-buffer
     (insert "A.")
-    (let ((bounds (flywrite--unit-bounds-at-pos 1)))
+    (let ((bounds (flywrite--paragraph-bounds-at-pos 1)))
       (should (>= (cdr bounds) (car bounds))))))
 
 ;;;; ---- Mode-aware suppression ----
@@ -184,7 +184,7 @@
 
 
 (ert-deftest flywrite-test-after-change-marks-dirty ()
-  "Editing text marks the containing unit dirty."
+  "Editing text marks the containing paragraph dirty."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
@@ -204,7 +204,7 @@
       (flywrite-mode 1)
       (insert "Hello world.")
       (let ((hash (flywrite--content-hash 1 (point-max))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--dirty-registry nil)
         (flywrite--after-change 1 (point-max) 0)
         (should-not flywrite--dirty-registry))
@@ -220,20 +220,20 @@
       (text-mode)
       (flywrite-mode 1)
       (push '(1 10 "fakehash") flywrite--dirty-registry)
-      (puthash "abc" t flywrite--checked-units)
+      (puthash "abc" t flywrite--checked-paragraphs)
       (push '(buf 1 10 "fakehash") flywrite--pending-queue)
       (flywrite-clear)
       (should-not flywrite--dirty-registry)
       (should-not flywrite--pending-queue)
-      (should (= (hash-table-count flywrite--checked-units) 0))
+      (should (= (hash-table-count flywrite--checked-paragraphs) 0))
       (flywrite-mode -1))))
 
 
-;;;; ---- Collect units in region ----
+;;;; ---- Collect paragraphs in region ----
 
 
-(ert-deftest flywrite-test-collect-units-basic ()
-  "Collecting units finds unchecked units in a region."
+(ert-deftest flywrite-test-collect-paragraphs-basic ()
+  "Collecting paragraphs finds unchecked paragraphs in a region."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
@@ -241,22 +241,24 @@
       (insert (concat "First paragraph.\n\n"
                       "Second paragraph.\n\n"
                       "Third paragraph."))
-      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
-        (should (= (length units) 3)))
+      (let ((paras (flywrite--collect-paragraphs-in-region
+                    1 (point-max))))
+        (should (= (length paras) 3)))
       (flywrite-mode -1))))
 
 
-(ert-deftest flywrite-test-collect-units-skips-checked ()
-  "Already-checked units are not collected."
+(ert-deftest flywrite-test-collect-paragraphs-skips-checked ()
+  "Already-checked paragraphs are not collected."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
-      (insert "Only sentence.")
+      (insert "Only paragraph.")
       (let ((hash (flywrite--content-hash 1 (point-max))))
-        (puthash hash t flywrite--checked-units))
-      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
-        (should (= (length units) 0)))
+        (puthash hash t flywrite--checked-paragraphs))
+      (let ((paras (flywrite--collect-paragraphs-in-region
+                    1 (point-max))))
+        (should (= (length paras) 0)))
       (flywrite-mode -1))))
 
 
@@ -298,7 +300,7 @@
                     " long shadows across the"
                     " floor."))
     ;; First paragraph
-    (let ((bounds (flywrite--unit-bounds-at-pos 1)))
+    (let ((bounds (flywrite--paragraph-bounds-at-pos 1)))
       (should (string-match-p
                "quick brown fox"
                (buffer-substring-no-properties
@@ -313,7 +315,7 @@
                   "\n\nTheir"
                   (buffer-substring-no-properties
                    1 (point-max)))))
-           (bounds (flywrite--unit-bounds-at-pos
+           (bounds (flywrite--paragraph-bounds-at-pos
                     (+ 3 para2-start))))
       (should (string-match-p
                "Their going"
@@ -321,8 +323,8 @@
                 (car bounds) (cdr bounds)))))))
 
 
-(ert-deftest flywrite-test-collect-units-paragraphs ()
-  "Collect paragraph units from multi-paragraph content."
+(ert-deftest flywrite-test-collect-paragraphs-multi ()
+  "Collect paragraphs from multi-paragraph content."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
@@ -332,8 +334,9 @@
                       "Second paragraph content here."
                       "\n\n"
                       "Third paragraph content here."))
-      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
-        (should (= (length units) 3)))
+      (let ((paras (flywrite--collect-paragraphs-in-region
+                    1 (point-max))))
+        (should (= (length paras) 3)))
       (flywrite-mode -1))))
 
 
@@ -350,7 +353,7 @@
                     " to the store."
                     "\n\n\\end{document}"))
     ;; Find the paragraph inside the document body
-    (let ((bounds (flywrite--unit-bounds-at-pos 20)))
+    (let ((bounds (flywrite--paragraph-bounds-at-pos 20)))
       (should (string-match-p
                "quick brown fox"
                (buffer-substring-no-properties
@@ -390,7 +393,7 @@
 
 
 (ert-deftest flywrite-test-after-change-multi-sentence ()
-  "After-change with multiple units marks at least one dirty."
+  "After-change with multiple paragraphs marks at least one dirty."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
@@ -471,31 +474,33 @@
       (put-text-property 1 10 'face '(font-lock-string-face bold))
       (should (flywrite--should-skip-p 1)))))
 
-;;;; ---- Collect units deduplication ----
+;;;; ---- Collect paragraphs deduplication ----
 
 
-(ert-deftest flywrite-test-collect-units-no-duplicates ()
-  "Collecting units does not produce duplicate entries for the same position."
+(ert-deftest flywrite-test-collect-paragraphs-no-duplicates ()
+  "Collecting paragraphs does not produce duplicate entries."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
       (insert "One sentence. Another sentence.")
-      (let* ((units (flywrite--collect-units-in-region 1 (point-max)))
-             (begs (mapcar #'car units)))
+      (let* ((paras (flywrite--collect-paragraphs-in-region
+                     1 (point-max)))
+             (begs (mapcar #'car paras)))
         ;; No duplicate start positions
         (should (= (length begs) (length (delete-dups (copy-sequence begs))))))
       (flywrite-mode -1))))
 
 
-(ert-deftest flywrite-test-collect-units-empty-buffer ()
-  "Collecting units in an empty buffer returns nil."
+(ert-deftest flywrite-test-collect-paragraphs-empty-buffer ()
+  "Collecting paragraphs in an empty buffer returns nil."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
-      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
-        (should (= (length units) 0)))
+      (let ((paras (flywrite--collect-paragraphs-in-region
+                    1 (point-max))))
+        (should (= (length paras) 0)))
       (flywrite-mode -1))))
 
 
@@ -592,14 +597,14 @@
 
 
 (ert-deftest flywrite-test-drain-queue-skips-checked ()
-  "Drain queue skips entries already in checked-units."
+  "Drain queue skips entries already in checked-paragraphs."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
       (insert "Hello world.")
       (let ((hash (flywrite--content-hash 1 (point-max))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--pending-queue
               (list (list (current-buffer) 1 (point-max) hash)))
         (setq flywrite--in-flight 0)
@@ -717,7 +722,7 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 429))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         ;; Create a fake response buffer for the handler
         (with-temp-buffer
@@ -725,7 +730,7 @@
           (goto-char (point-min))
           (flywrite--handle-response status buf 1 15 hash (current-time)))
         ;; Hash should still be checked (not removed)
-        (should (gethash hash flywrite--checked-units)))
+        (should (gethash hash flywrite--checked-paragraphs)))
       (flywrite-mode -1))))
 
 
@@ -739,7 +744,7 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 429))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         (setq flywrite--pending-queue
               (list (list buf 1 15 "fakehash1")
@@ -762,14 +767,14 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 500))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         (with-temp-buffer
           (insert "HTTP/1.1 500 Internal Server Error\r\n\r\n{}")
           (goto-char (point-min))
           (flywrite--handle-response status buf 1 15 hash (current-time)))
         ;; Hash stays checked — user can flywrite-clear to force recheck
-        (should (gethash hash flywrite--checked-units)))
+        (should (gethash hash flywrite--checked-paragraphs)))
       (flywrite-mode -1))))
 
 ;;;; ---- 529 overload handling ----
@@ -785,7 +790,7 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 529))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         (setq flywrite--pending-queue
               (list (list buf 1 15 "fakehash1")
@@ -808,13 +813,13 @@
       (let* ((hash (flywrite--content-hash 1 (point-max)))
              (buf (current-buffer))
              (status `(:error (error http 529))))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         (with-temp-buffer
           (insert "HTTP/1.1 529 Overloaded\r\n\r\n{}")
           (goto-char (point-min))
           (flywrite--handle-response status buf 1 15 hash (current-time)))
-        (should (gethash hash flywrite--checked-units)))
+        (should (gethash hash flywrite--checked-paragraphs)))
       (flywrite-mode -1))))
 
 
@@ -829,7 +834,7 @@
              (buf (current-buffer))
              (status `(:error (error http 529)))
              (messages nil))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args)
@@ -859,7 +864,7 @@
              (buf (current-buffer))
              (status `(:error (error connection-failed)))
              (response-buf (generate-new-buffer " *test-response*")))
-        (puthash hash t flywrite--checked-units)
+        (puthash hash t flywrite--checked-paragraphs)
         (setq flywrite--in-flight 1)
         ;; First callback
         (with-current-buffer response-buf

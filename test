@@ -24,7 +24,6 @@ emacs \
   --eval "(push default-directory load-path)" \
   -f batch-byte-compile \
   "${EL_FILES[@]}"
-rm -f ./*.elc
 
 # Lint: elint
 ELINT_INIT='(progn
@@ -91,7 +90,6 @@ emacs \
   --eval "$PACKAGE_LINT_INIT" \
   -f package-lint-batch-and-exit \
   "$EL_FILE_PACKAGE"
-rm -f flywrite-autoloads.el flywrite-autoloads.elc
 
 # Lint: nesting depth (control-flow forms only, max depth 5)
 echo "Lint: nesting depth"
@@ -134,6 +132,9 @@ diff <( \
   }' README.md \
   | sed '1s/^  "//; $s/")$//' \
 )
+
+# Clean up
+rm -f ./*.elc
 
 echo "########################################"
 echo "# $0 PASS"

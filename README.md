@@ -91,7 +91,6 @@ Rules:
 - One entry per distinct issue
 - Do not flag correct text
 - Only evaluate prose content.  Ignore markup like LaTeX, HTML, or Org-mode.
--- ADD, REMOVE, OR EDIT RULES BELOW --
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging
   (e.g., 'a lot', 'things', 'stuff', 'really')

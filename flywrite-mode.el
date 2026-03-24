@@ -253,6 +253,7 @@ configure it.  See the README for details."
   "Default model for Google Gemini API.")
 
 
+;; System prompt for general prose writing feedback.
 (defconst flywrite--prose-prompt
   "You are a writing assistant. Analyze the text for grammar,
 clarity, and style.  Return JSON only. No text outside the JSON.
@@ -269,10 +270,10 @@ Rules:
 - Keep reasons under 12 words
 - One entry per distinct issue
 - Do not flag correct text
-- Only evaluate prose content.  Ignore markup like LaTeX, HTML, or Org-mode."
-  "System prompt for general prose writing feedback.")
+- Only evaluate prose content.  Ignore markup like LaTeX, HTML, or Org-mode.")
 
 
+;; System prompt for academic writing feedback.
 (defconst flywrite--academic-prompt
   "You are a writing assistant. Analyze the text for grammar,
 clarity, and style.  Return JSON only. No text outside the JSON.
@@ -306,8 +307,7 @@ Rules:
 - Flag weasel words (e.g., 'significantly' without statistical
   context, 'often', 'usually' without citation)
 - Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
-  -- prefer 'Therefore', 'Additionally', 'Moreover'"
-  "System prompt for academic writing feedback.")
+  -- prefer 'Therefore', 'Additionally', 'Moreover'")
 
 
 (defconst flywrite--prompt-alist

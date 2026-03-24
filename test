@@ -87,12 +87,11 @@ emacs -Q --batch \
 # Check: README system prompt matches source
 echo "Check: README system prompt matches source"
 diff <( \
-  sed -n '/^(defconst flywrite--academic-prompt$/,/^  "System prompt for academic/{
+  sed -n '/^(defconst flywrite--academic-prompt$/,/^  -- prefer/{
     /^(defconst/d
-    /^  "System prompt for/d
     p
   }' flywrite-mode.el \
-  | sed '1s/^  "//; $s/"$//' \
+  | sed '1s/^  "//; $s/")$//' \
 ) <( \
   sed -n '/^(setq flywrite-system-prompt$/,/^```$/{
     /^(setq/d
@@ -100,5 +99,4 @@ diff <( \
     p
   }' README.md \
   | sed '1s/^  "//; $s/")$//' \
-  | grep -vF -e '-- ADD, REMOVE, OR EDIT RULES BELOW --' \
 )

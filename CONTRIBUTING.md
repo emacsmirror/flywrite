@@ -109,11 +109,9 @@ See [`samples/README.md`](samples/README.md) for file descriptions.
 - Logical nesting depth: prefer 4--5 levels, hard limit of 6
   (enforced by `lint-nesting.el`)
 
-
 Design
 - Async HTTP via `url-retrieve` (no external dependencies)
 - Diagnostics tagged with `[flywrite]` suffix
-
 
 ## Documentation
 

@@ -24,11 +24,10 @@ This is a pure Emacs Lisp package with no build system and no external dependenc
 
 The `./test` script runs these checks in order:
 1. **Byte-compile** with warnings-as-errors
-2. **checkdoc** — docstring style
-3. **elint** — Emacs Lisp lint
-4. **elisp-lint** — installed from MELPA on first run
-5. **Nesting depth** — custom `lint-nesting.el`, max control-flow depth of 6
-6. **ERT unit tests** — `test-flywrite.el`
+2. **elint** — Emacs Lisp lint
+3. **elisp-lint** — installed from MELPA on first run (includes checkdoc)
+4. **Nesting depth** — custom `lint-nesting.el`, max control-flow depth of 6
+5. **ERT unit tests** — `test-flywrite.el`
 
 **Byte-compile check** (standalone):
 ```bash

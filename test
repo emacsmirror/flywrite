@@ -25,16 +25,6 @@ check_quiet() {
   fi
 }
 
-# Lint: checkdoc
-echo "Lint: checkdoc"
-check_quiet \
-  emacs -Q --batch \
-    --eval "(setq checkdoc-verb-check-experimental-flag nil)" \
-    --eval "(checkdoc-file \"flywrite-mode.el\")" \
-    --eval "(when (get-buffer \"*Warnings*\")
-              (with-current-buffer \"*Warnings*\"
-                (princ (buffer-string))))"
-
 # Lint: elint
 echo "Lint: elint"
 check_quiet \
@@ -44,7 +34,8 @@ check_quiet \
     --eval "(with-current-buffer \"*Elint*\"
               (princ (buffer-string)))"
 
-# Lint: elisp-lint (install from MELPA, disable checks run separately)
+# Lint: elisp-lint
+# Install from MELPA, disable checks run separately, includes checkdoc
 echo "Lint: elisp-lint"
 emacs -Q --batch \
   --eval "(require 'package)" \
@@ -55,7 +46,6 @@ emacs -Q --batch \
             (package-install 'elisp-lint))" \
   --eval "(require 'elisp-lint)" \
   -f elisp-lint-files-batch \
-  --no-checkdoc \
   --no-byte-compile \
   --no-indent \
   --no-indent-character \

@@ -295,6 +295,7 @@ Rules:
 - Do not flag correct text
 - Do not flag spacing between sentences (one or two spaces are
   both acceptable).
+- Err on the side of not flagging.  Only flag clear, unambiguous errors.
 - Ignore markup like LaTeX, HTML, or Org-mode.
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging

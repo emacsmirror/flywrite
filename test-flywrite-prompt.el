@@ -73,7 +73,7 @@
     (:text ,(concat "The optimization had a significant "
                     "affect on runtime performance.")
            :description "affect/effect, weasel word"
-           :expected ((prose . 1) (academic . 2)))
+           :expected ((prose . 1) (academic . 1)))
     (:text ,(concat "The benchmarks show the approach is "
                     "more efficient then brute force "
                     "search.")
@@ -117,7 +117,7 @@
                     "stuff.")
            :description ,(concat "academic-only errors: hedging, "
                                  "weasel words, informal language")
-           :expected ((prose . 1) (academic . 10)))
+           :expected ((prose . 1) (academic . 11)))
     ;; Paragraph-sized inputs (multi-sentence)
     (:text ,(concat "The quick brown fox jumped over the "
                     "lazy dog.  Him and his friend went to "

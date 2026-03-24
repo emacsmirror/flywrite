@@ -119,6 +119,88 @@
       "timestamp": "2026-03-24T13:27:27Z"
     },
     {
+      "text": "I think that this is obviously the most important thing we need to address. We found that the treatment significantly improved outcomes, and a lot of participants felt that it was really effective. So, the results clearly show that this has a positive impact on stuff.",
+      "prompt_hash": "97912e902624ba8e5322b793c77c53fe",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "I think that",
+            "reason": "Unsupported opinion - state evidence instead"
+          },
+          {
+            "quote": "obviously",
+            "reason": "Subjective qualifier - remove unnecessary hedging"
+          },
+          {
+            "quote": "the most important thing",
+            "reason": "Unsupported superlative - provide evidence for ranking"
+          },
+          {
+            "quote": "this",
+            "reason": "Ambiguous pronoun - specify what 'this' refers to"
+          },
+          {
+            "quote": "significantly improved",
+            "reason": "Weasel word - provide statistical context for 'significantly'"
+          },
+          {
+            "quote": "a lot of participants",
+            "reason": "Vague quantifier - specify exact number or percentage"
+          },
+          {
+            "quote": "really effective",
+            "reason": "Vague hedging - define specific effectiveness measures"
+          },
+          {
+            "quote": "So,",
+            "reason": "Informal transition - use 'Therefore' instead"
+          },
+          {
+            "quote": "clearly show",
+            "reason": "Subjective qualifier - let results speak for themselves"
+          },
+          {
+            "quote": "this has",
+            "reason": "Ambiguous pronoun - specify what 'this' refers to"
+          },
+          {
+            "quote": "stuff",
+            "reason": "Vague term - specify what is being affected"
+          }
+        ]
+      },
+      "timestamp": "2026-03-24T17:40:45Z"
+    },
+    {
+      "text": "I think that this is obviously the most important thing we need to address. We found that the treatment significantly improved outcomes, and a lot of participants felt that it was really effective. So, the results clearly show that this has a positive impact on stuff.",
+      "prompt_hash": "cce0103dd3d166265a3d24508471fb99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "obviously",
+            "reason": "Avoid absolute terms in academic writing"
+          },
+          {
+            "quote": "a lot of participants",
+            "reason": "Use precise numbers instead of vague quantifiers"
+          },
+          {
+            "quote": "really effective",
+            "reason": "Replace informal intensifier with specific measures"
+          },
+          {
+            "quote": "stuff",
+            "reason": "Too informal; specify what is being impacted"
+          }
+        ]
+      },
+      "timestamp": "2026-03-24T17:36:47Z"
+    },
+    {
       "text": "She could of finished the report on time if she would have started earlier.",
       "prompt_hash": "97912e902624ba8e5322b793c77c53fe",
       "model": "claude-sonnet-4-20250514",
@@ -601,6 +683,52 @@
         ]
       },
       "timestamp": "2026-03-24T14:49:27Z"
+    },
+    {
+      "text": "This file uses the 'prose' prompt via a file-local variable on the first line.  Paragraph 1 has general prose errors which should be flagged.  Paragraph 2 has academic-only errors like hedging and weasel words which should not be flagged by the prose prompt.",
+      "prompt_hash": "97912e902624ba8e5322b793c77c53fe",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "This file uses the 'prose' prompt via a file-local variable on the first line.",
+            "reason": "Contractions should be avoided in formal writing"
+          },
+          {
+            "quote": "general prose errors which should be flagged",
+            "reason": "Vague term 'general prose errors' - be more specific"
+          },
+          {
+            "quote": "academic-only errors like hedging and weasel words which should not be flagged",
+            "reason": "Vague term 'academic-only errors' - be more specific"
+          }
+        ]
+      },
+      "timestamp": "2026-03-24T17:36:50Z"
+    },
+    {
+      "text": "This file uses the 'prose' prompt via a file-local variable on the first line.  Paragraph 1 has general prose errors which should be flagged.  Paragraph 2 has academic-only errors like hedging and weasel words which should not be flagged by the prose prompt.",
+      "prompt_hash": "cce0103dd3d166265a3d24508471fb99",
+      "model": "claude-sonnet-4-20250514",
+      "temperature": 0,
+      "response": {
+        "suggestions": [
+          {
+            "quote": "This file uses the 'prose' prompt via a file-local variable on the first line.",
+            "reason": "Run-on sentence, consider breaking into shorter sentences"
+          },
+          {
+            "quote": "Paragraph 1 has general prose errors which should be flagged.",
+            "reason": "Vague reference - specify what 'general prose errors' means"
+          },
+          {
+            "quote": "Paragraph 2 has academic-only errors like hedging and weasel words which should not be flagged by the prose prompt.",
+            "reason": "Run-on sentence, consider splitting for clarity"
+          }
+        ]
+      },
+      "timestamp": "2026-03-24T17:32:03Z"
     },
     {
       "text": "We feel the results are promising.",

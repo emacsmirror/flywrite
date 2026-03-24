@@ -96,6 +96,28 @@
                                  "qualifier, ambiguous \"this\", "
                                  "vague term")
            :expected ((prose . 1) (academic . 4)))
+    ;; From samples/file-local-prose.txt
+    (:text ,(concat "This file uses the 'prose' prompt via "
+                    "a file-local variable on the first "
+                    "line.  Paragraph 1 has general prose "
+                    "errors which should be flagged.  "
+                    "Paragraph 2 has academic-only errors "
+                    "like hedging and weasel words which "
+                    "should not be flagged by the prose "
+                    "prompt.")
+           :description "clean meta-description paragraph"
+           :expected ((prose . 0) (academic . 0)))
+    (:text ,(concat "I think that this is obviously the most "
+                    "important thing we need to address. We "
+                    "found that the treatment significantly "
+                    "improved outcomes, and a lot of "
+                    "participants felt that it was really "
+                    "effective. So, the results clearly show "
+                    "that this has a positive impact on "
+                    "stuff.")
+           :description ,(concat "academic-only errors: hedging, "
+                                 "weasel words, informal language")
+           :expected ((prose . 1) (academic . 6)))
     ;; Paragraph-sized inputs (multi-sentence)
     (:text ,(concat "The quick brown fox jumped over the "
                     "lazy dog.  Him and his friend went to "
@@ -240,8 +262,13 @@ Empty arrays are preserved as empty vectors so `json-encode' writes []."
   "Store a cache entry and register the prompt text.
 TEXT, MODEL, PROMPT-HASH, and TEMPERATURE form the cache key.
 PROMPT-TEXT is the system prompt string (stored in the prompts table).
-RESPONSE is the raw API response string; it is parsed to JSON for storage."
-  (let* ((response-obj (flywrite-prompt-test--parse-response-string response))
+RESPONSE is the raw API response string; it is parsed to JSON for storage.
+If RESPONSE cannot be parsed, the entry is stored with an error marker."
+  (let* ((response-obj (condition-case nil
+                           (flywrite-prompt-test--parse-response-string
+                            response)
+                         (error `((suggestions . [])
+                                  (parse-error . t)))))
          (ts (format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t))
          (entry `(("text" . ,text)
                   ("model" . ,model)
@@ -273,11 +300,19 @@ Uses flywrite configuration for URL, model, API key, and system prompt."
       (error "API call returned no response buffer"))
     (unwind-protect
         (with-current-buffer response-buf
-          (cl-destructuring-bind (_status _json resp-text)
+          (cl-destructuring-bind (_status json resp-text)
               (flywrite--extract-response-text)
             (unless resp-text
               (error "No text in API response"))
-            resp-text))
+            (let ((stop (or (alist-get 'stop_reason json)
+                            (let* ((choices (alist-get 'choices json))
+                                   (c (and (arrayp choices)
+                                           (> (length choices) 0)
+                                           (aref choices 0))))
+                              (and c (alist-get 'finish_reason c))))))
+              (when (equal stop "max_tokens")
+                (message "  [WARN] Response truncated (max_tokens)"))
+              resp-text)))
       (kill-buffer response-buf))))
 
 (defun flywrite-prompt-test--parse-suggestions (response)
@@ -302,7 +337,8 @@ Uses Anthropic as the default provider."
 (defun flywrite-prompt-test--run-one (input style)
   "Run a single prompt test for INPUT plist with prompt STYLE.
 STYLE is a symbol from `flywrite--prompt-alist' (e.g., `prose' or `academic').
-Returns the number of suggestions from the API (using cache when available)."
+Returns a cons (COUNT . SUGGESTIONS) where COUNT is the number of
+suggestions and SUGGESTIONS is the list returned by the API."
   (flywrite-prompt-test--configure)
   (let* ((flywrite-system-prompt style)
          (text (plist-get input :text))
@@ -324,8 +360,13 @@ Returns the number of suggestions from the API (using cache when available)."
               (flywrite-prompt-test--cache-store
                text model prompt-hash temperature prompt-text resp)
               resp)))
-         (suggestions (flywrite-prompt-test--parse-suggestions response-text)))
-    (length suggestions)))
+         (suggestions
+          (condition-case nil
+              (flywrite-prompt-test--parse-suggestions response-text)
+            (error
+             (message "  [WARN] JSON parse error, treating as 0")
+             nil))))
+    (cons (length suggestions) suggestions)))
 
 (defun flywrite-prompt-test--prune-cache ()
   "Remove cache entries whose prompt hash is not current.
@@ -351,7 +392,7 @@ each style in `flywrite--prompt-alist'."
 
 (defun flywrite-prompt-test--run-all ()
   "Run all prompt regression tests for every prompt style.
-Return list of (style input expected count pass) tuples."
+Return list of (style input expected count suggestions pass) tuples."
   (flywrite-prompt-test--load-cache)
   ;; Build flat list of (style . input) pairs across all prompt styles.
   (let ((pairs (cl-loop for style-entry in flywrite--prompt-alist
@@ -369,12 +410,15 @@ Return list of (style input expected count pass) tuples."
                   (error
                    "No expected count for style `%s' in input: %s"
                    style (plist-get input :description))))
-             (count (flywrite-prompt-test--run-one input style))
+             (result (flywrite-prompt-test--run-one input style))
+             (count (car result))
+             (suggestions (cdr result))
              (pass (= count expected)))
         (unless (eq style prev-style)
           (message "Testing prompt: %s" style)
           (setq prev-style style))
-        (push (list style input expected count pass) results)))
+        (push (list style input expected count suggestions pass)
+              results)))
     (flywrite-prompt-test--prune-cache)
     (flywrite-prompt-test--save-cache)
     (nreverse results)))
@@ -390,15 +434,33 @@ return the exact expected number of suggestions."
              (input (nth 1 result))
              (expected (nth 2 result))
              (count (nth 3 result))
-             (pass (nth 4 result))
+             (suggestions (nth 4 result))
+             (pass (nth 5 result))
              (text (plist-get input :text))
-             (desc (plist-get input :description)))
+             (desc (plist-get input :description))
+             (sugg-lines
+              (mapconcat
+               (lambda (s)
+                 (let ((quote (or (alist-get 'quote s)
+                                  (cdr (assoc "quote" s))
+                                  "?"))
+                       (reason (or (alist-get 'reason s)
+                                   (cdr (assoc "reason" s))
+                                   "?")))
+                   (format "    - \"%s\" -> %s" quote reason)))
+               (append suggestions nil) "\n")))
         (unless pass
-          (push (format "FAIL [%s]: %s\n  text: %s\n  expected: %d, got: %d"
-                        style desc text expected count)
-                failures))))
+          (let ((msg (format (concat "FAIL [%s]: %s\n"
+                                     "  text: %s\n"
+                                     "  expected: %d, got: %d\n"
+                                     "  suggestions:\n%s")
+                             style desc text expected count
+                             sugg-lines)))
+            (message "\n%s" msg)
+            (push msg failures)))))
     (when failures
-      (ert-fail (mapconcat #'identity (nreverse failures) "\n\n")))))
+      (ert-fail (format "%d prompt test(s) failed (see messages above)"
+                        (length failures))))))
 
 (provide 'test-flywrite-prompt)
 

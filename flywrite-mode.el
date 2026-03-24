@@ -949,21 +949,18 @@ request.  START-TIME is used for latency logging."
 
 
 (defun flywrite--eager-scan ()
-  "Add paragraphs around point to the dirty registry."
-  ;; Allows reviewing existing text by moving the cursor through it,
-  ;; without requiring an edit to trigger checking.
+  "Add the paragraph at point to the dirty registry.
+Allows reviewing existing text by moving the cursor through it,
+without requiring an edit to trigger checking."
   (condition-case err
-      (save-excursion
-        (let (pbeg pend)
-          (backward-paragraph)
-          (skip-chars-forward " \t\n")
-          (setq pbeg (point))
-          (forward-paragraph)
-          (skip-chars-backward " \t\n")
-          (setq pend (point))
-          (when (> pend pbeg)
-            (dolist (entry (flywrite--collect-paragraphs-in-region pbeg pend))
-              (push entry flywrite--dirty-registry)))))
+      (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
+             (pbeg (car bounds))
+             (pend (cdr bounds))
+             (entry (when (> pend pbeg)
+                      (flywrite--try-collect-paragraph
+                       pbeg pend (make-hash-table :test 'eql)))))
+        (when entry
+          (push entry flywrite--dirty-registry)))
     (error
      (flywrite--log "Error in eager scan: %s buf=%s"
                     (error-message-string err) (buffer-name)))))

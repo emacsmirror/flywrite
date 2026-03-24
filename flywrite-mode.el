@@ -331,9 +331,10 @@ If it is a symbol, look it up in `flywrite--prompt-alist'."
    ((symbolp flywrite-system-prompt)
     (let ((entry (assq flywrite-system-prompt flywrite--prompt-alist)))
       (unless entry
-        (error "Unknown flywrite-system-prompt style: %s" flywrite-system-prompt))
+        (error "Unknown flywrite-system-prompt style: %s"
+               flywrite-system-prompt))
       (cdr entry)))
-   (t (error "Variable flywrite-system-prompt must be a symbol or string, got: %S"
+   (t (error "Bad flywrite-system-prompt type: %S"
              flywrite-system-prompt))))
 
 
@@ -496,7 +497,8 @@ BEG and END are the changed region boundaries."
              (car bounds) (cdr bounds)
              (flywrite--content-hash (car bounds) (cdr bounds)))))
       (error
-       (flywrite--log "Error in after-change: %s buf=%s" (error-message-string err) (buffer-name))))))
+       (flywrite--log "Error in after-change: %s buf=%s"
+                      (error-message-string err) (buffer-name))))))
 
 
 ;;;; ---- API call ----
@@ -543,7 +545,9 @@ auto-detect from `flywrite-api-url'."
         (error "Set flywrite-api-url or flywrite-api-model"))
        ((string-match-p "api\\.anthropic\\.com" flywrite-api-url)
         flywrite--default-model-anthropic)
-       ((string-match-p "generativelanguage\\.googleapis\\.com" flywrite-api-url)
+       ((string-match-p
+         "generativelanguage\\.googleapis\\.com"
+         flywrite-api-url)
         flywrite--default-model-gemini)
        (t flywrite--default-model-openai))))
 
@@ -570,7 +574,8 @@ providers."
          ;;   {"model":"...", "system":"...", "messages":[{"role":"user",...}]}
          ;;
          ;; OpenAI-compatible: system prompt is a message with role "system".
-         ;;   {"model":"...", "messages":[{"role":"system",...},{"role":"user",...}]}
+         ;;   {"model":"...", "messages":[{"role":"system",...},
+         ;;    {"role":"user",...}]}
          (payload (json-encode
                    (if anthropic-p
                        `((model . ,model)
@@ -612,13 +617,14 @@ Signal an error if configuration is invalid, preventing mode activation."
           (error "Set flywrite-api-url"))
         (flywrite--log "API URL: %s" flywrite-api-url)
         (unless (string-match-p "\\`https?://" flywrite-api-url)
-          (error "Variable flywrite-api-url must start with http:// or https://: %s"
+          (error "Flywrite-api-url must start with http(s)://: %s"
                  flywrite-api-url))
 
         ;; API key is required for remote providers but optional for
         ;; local ones (e.g., Ollama on localhost).
         (let* ((local-p (string-match-p
-                         "\\(?:localhost\\|127\\.0\\.0\\.1\\)" flywrite-api-url))
+                         "\\(?:localhost\\|127\\.0\\.0\\.1\\)"
+                         flywrite-api-url))
                (api-key (flywrite--get-api-key)))
           (flywrite--log "API key source: %s"
                          (cond (flywrite-api-key "flywrite-api-key variable")
@@ -655,7 +661,7 @@ HASH is the content hash at time of dispatch for stale checking."
       (flywrite--log "Skipping already-checked hash=%s" hash)
     (unless flywrite-api-url
       (flywrite--log "ERROR: flywrite-api-url is not set")
-      (error "Set flywrite-api-url before use, see the README for configuration"))
+      (error "Set flywrite-api-url before use, see README"))
 
     ;; Extract text and build the HTTP request (headers + JSON payload).
     (condition-case err
@@ -685,7 +691,8 @@ HASH is the content hash at time of dispatch for stale checking."
                  (url-retrieve
                   flywrite-api-url
                   (lambda (status)
-                    (flywrite--handle-response status buf beg end hash start-time))
+                    (flywrite--handle-response
+                     status buf beg end hash start-time))
                   nil t t)))
             (when (and conn-buf (buffer-live-p conn-buf))
               (with-current-buffer buf
@@ -731,14 +738,16 @@ Clears the pending queue on 429 rate-limit errors."
       (when (and (listp err-info)
                  (or (member 429 err-info) (member 529 err-info)))
         (flywrite--log "%s (%d) hash=%s"
-                       (if (member 429 err-info) "Rate limited" "API overloaded")
+                       (if (member 429 err-info)
+                           "Rate limited" "API overloaded")
                        (if (member 429 err-info) 429 529) hash)
         (when (buffer-live-p buf)
           (with-current-buffer buf
             (when flywrite--pending-queue
               (flywrite--log "Clearing %d queued requests due to %s hash=%s"
                              (length flywrite--pending-queue)
-                             (if (member 429 err-info) "rate limit" "API overload")
+                             (if (member 429 err-info)
+                                 "rate limit" "API overload")
                              hash)
               (setq flywrite--pending-queue nil)))))
       (error (if (and (listp err-info) (member 529 err-info))
@@ -823,18 +832,20 @@ BEG, END, HASH identify the checked region."
         ;; Add new diagnostics
         (let ((region-text (buffer-substring-no-properties beg end)))
           (dolist (suggestion (append suggestions nil))
-            (flywrite--make-suggestion-diagnostic buf beg region-text suggestion hash)))
+            (flywrite--make-suggestion-diagnostic
+             buf beg region-text suggestion hash)))
 
         ;; Report to flymake and mark checked
         (flywrite--report-to-flymake hash)
         (puthash hash t flywrite--checked-units))
     (error
-     (flywrite--log "LLM returned unparseable response: %s hash=%s\nRaw text: %s"
+     (flywrite--log "LLM unparseable response: %s hash=%s\n%s"
                     (error-message-string parse-err) hash text)
-     (message "flywrite: LLM returned invalid JSON, check *flywrite-log* for details"))))
+     (message "flywrite: invalid JSON, see *flywrite-log*"))))
 
 
-(defun flywrite--make-suggestion-diagnostic (buf beg region-text suggestion hash)
+(defun flywrite--make-suggestion-diagnostic
+    (buf beg region-text suggestion hash)
   "Create a diagnostic from SUGGESTION and add it to `flywrite--diagnostics'.
 BUF is the source buffer, BEG is the region start, REGION-TEXT is
 the region content.  HASH is for logging."
@@ -881,7 +892,7 @@ Called with the response buffer current.  May signal on errors."
     (flywrite--log "Response: HTTP %s %.2fs hash=%s JSON=%S"
                    (or http-status "?") latency hash json-data)
     (unless text
-      (flywrite--log "Response had no extractable text, skipping hash=%s json=%S"
+      (flywrite--log "No extractable text, skipping hash=%s json=%S"
                      hash json-data))
     (when (and text (buffer-live-p buf))
       (with-current-buffer buf
@@ -916,7 +927,7 @@ request.  START-TIME is used for latency logging."
                                 (buffer-substring-no-properties
                                  (point) (point-max))
                                 500 nil nil t))))))
-               (flywrite--log "Response handler error: %s hash=%s\nResponse body: %s"
+               (flywrite--log "Response handler error: %s hash=%s\n%s"
                               (error-message-string err) hash
                               (or body "<empty>"))
                (message "flywrite: %s" (error-message-string err)))))
@@ -1024,7 +1035,8 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
            (hash (nth 3 entry)))
       (when (and (buffer-live-p buf)
                  (<= end (with-current-buffer buf (point-max)))
-                 (not (gethash hash (buffer-local-value 'flywrite--checked-units buf))))
+                 (not (gethash hash (buffer-local-value
+                                     'flywrite--checked-units buf))))
         (flywrite--log "Draining queue: [%d-%d] hash=%s" beg end hash)
         (flywrite--send-request buf beg end hash)))))
 
@@ -1088,7 +1100,8 @@ Prompts for confirmation when the count exceeds
   (let ((units (flywrite--collect-units-in-region (point-min) (point-max))))
     (when (and (> (length units) flywrite-check-confirm-threshold)
                (not (y-or-n-p (format "Check %d units? " (length units)))))
-      (flywrite--log "check-buffer: cancelled by user (%d units)" (length units))
+      (flywrite--log "check-buffer: cancelled by user (%d units)"
+                     (length units))
       (user-error "Cancelled"))
     (let ((count 0))
       (dolist (entry units)
@@ -1121,7 +1134,8 @@ Prompts for confirmation when the count exceeds
   (let ((units (flywrite--collect-units-in-region beg end)))
     (when (and (> (length units) flywrite-check-confirm-threshold)
                (not (y-or-n-p (format "Check %d units? " (length units)))))
-      (flywrite--log "check-region: cancelled by user (%d units)" (length units))
+      (flywrite--log "check-region: cancelled by user (%d units)"
+                     (length units))
       (user-error "Cancelled"))
     (let ((count 0))
       (dolist (entry units)
@@ -1247,14 +1261,19 @@ Eglot replaces the buffer-local value with only its own backend."
   ;; Eglot replaces flymake-diagnostic-functions with only its own
   ;; backend, so re-add ours after eglot setup.
   (when (fboundp 'eglot-managed-mode-hook)
-    (add-hook 'eglot-managed-mode-hook #'flywrite--ensure-flymake-backend nil t))
+    (add-hook 'eglot-managed-mode-hook
+              #'flywrite--ensure-flymake-backend nil t))
 
   ;; Start the idle timer that drains the dirty registry
   (setq flywrite--idle-timer
         (run-with-idle-timer flywrite-idle-delay t
                              #'flywrite--idle-timer-fn (current-buffer)))
 
-  (flywrite--log "flywrite-mode enabled in %s (emacs %s, url=%s, model=%s, granularity=%s, idle=%.1f, max-concurrent=%d, eager=%s, caching=%s, prompt=%s)"
+  (flywrite--log (concat "flywrite-mode enabled in %s"
+                         " (emacs %s, url=%s, model=%s,"
+                         " granularity=%s, idle=%.1f,"
+                         " max-concurrent=%d, eager=%s,"
+                         " caching=%s, prompt=%s)")
                  (buffer-name) emacs-version
                  (or flywrite-api-url "nil")
                  (or flywrite-api-model "auto") flywrite-granularity
@@ -1267,7 +1286,9 @@ Eglot replaces the buffer-local value with only its own backend."
 
 (defun flywrite--disable ()
   "Tear down `flywrite-mode' in the current buffer."
-  (flywrite--log "flywrite-mode disabled in %s (in-flight=%d, pending=%d, dirty=%d)"
+  (flywrite--log (concat "flywrite-mode disabled in %s"
+                         " (in-flight=%d, pending=%d,"
+                         " dirty=%d)")
                  (buffer-name) flywrite--in-flight
                  (length flywrite--pending-queue)
                  (length flywrite--dirty-registry))

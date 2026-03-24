@@ -3,12 +3,18 @@
 ;;; Commentary:
 
 ;; Run with:
-;;   emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el -f ert-run-tests-batch-and-exit
+;;   emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el \
+;;     -f ert-run-tests-batch-and-exit
 
 ;;; Code:
 
 (require 'ert)
 (require 'flywrite-mode)
+
+(defvar flywrite-test--gemini-url
+  (concat "https://generativelanguage.googleapis.com"
+          "/v1beta/openai/chat/completions")
+  "Gemini API URL used in tests.")
 
 ;;;; ---- Content hashing ----
 
@@ -111,15 +117,17 @@
       (let ((bounds (flywrite--unit-bounds-at-pos 1)))
         (should (= (car bounds) 1))
         (should (string= (buffer-substring-no-properties
-                           (car bounds) (cdr bounds))
-                          "First sentence."))))))
+                          (car bounds) (cdr bounds))
+                         "First sentence."))))))
 
 
 (ert-deftest flywrite-test-paragraph-bounds ()
   "Paragraph boundaries are detected correctly."
   (let ((flywrite-granularity 'paragraph))
     (with-temp-buffer
-      (insert "First paragraph line one.\nFirst paragraph line two.\n\nSecond paragraph.")
+      (insert (concat "First paragraph line one.\n"
+                      "First paragraph line two.\n"
+                      "\nSecond paragraph."))
       (let ((bounds (flywrite--unit-bounds-at-pos 1)))
         (should (= (car bounds) 1))
         (should (string-match-p "First paragraph line one"
@@ -260,19 +268,30 @@
   "Sentence detection in multi-sentence plain text (like example.txt)."
   (let ((flywrite-granularity 'sentence))
     (with-temp-buffer
-      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys. The weather was very extremely hot outside yesterday.")
+      (insert (concat "The quick brown fox jumpted over"
+                      " the lazy dog. "
+                      "Him and his friend went to the"
+                      " store to buy some grocerys. "
+                      "The weather was very extremely"
+                      " hot outside yesterday."))
       ;; First sentence
       (let ((bounds (flywrite--unit-bounds-at-pos 1)))
-        (should (string= (buffer-substring-no-properties (car bounds) (cdr bounds))
-                          "The quick brown fox jumpted over the lazy dog.")))
+        (should
+         (string= (buffer-substring-no-properties
+                   (car bounds) (cdr bounds))
+                  "The quick brown fox jumpted over the lazy dog.")))
       ;; Second sentence (start from middle of it)
       (let ((bounds (flywrite--unit-bounds-at-pos 50)))
-        (should (string-match-p "Him and his friend"
-                                (buffer-substring-no-properties (car bounds) (cdr bounds)))))
+        (should (string-match-p
+                 "Him and his friend"
+                 (buffer-substring-no-properties
+                  (car bounds) (cdr bounds)))))
       ;; Third sentence (start from near end)
       (let ((bounds (flywrite--unit-bounds-at-pos 110)))
-        (should (string-match-p "The weather was"
-                                (buffer-substring-no-properties (car bounds) (cdr bounds))))))))
+        (should (string-match-p
+                 "The weather was"
+                 (buffer-substring-no-properties
+                  (car bounds) (cdr bounds))))))))
 
 
 (ert-deftest flywrite-test-collect-units-plain-text ()
@@ -282,32 +301,61 @@
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
-      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys. The weather was very extremely hot outside yesterday.")
-      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
+      (insert (concat "The quick brown fox jumpted over"
+                      " the lazy dog. "
+                      "Him and his friend went to the"
+                      " store to buy some grocerys. "
+                      "The weather was very extremely"
+                      " hot outside yesterday."))
+      (let ((units (flywrite--collect-units-in-region
+                    1 (point-max))))
         (should (= (length units) 3)))
       (flywrite-mode -1))))
 
 
-;;;; ---- Paragraph boundaries with multi-paragraph content (markdown-simple.md) ----
+;;;; ---- Paragraph boundaries (markdown-simple.md) ----
 
 
 (ert-deftest flywrite-test-paragraph-bounds-multi ()
   "Paragraph detection in multi-paragraph text (like markdown-simple.md)."
   (let ((flywrite-granularity 'paragraph))
     (with-temp-buffer
-      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store.\n\nTheir going to the park later today, irregardless of the rain. Each of the students need to submit there homework.\n\nThe morning light filtered through the curtains and cast long shadows across the floor.")
+      (insert (concat "The quick brown fox jumpted over"
+                      " the lazy dog. "
+                      "Him and his friend went to"
+                      " the store."
+                      "\n\n"
+                      "Their going to the park later"
+                      " today, irregardless of the"
+                      " rain. Each of the students"
+                      " need to submit there homework."
+                      "\n\n"
+                      "The morning light filtered"
+                      " through the curtains and cast"
+                      " long shadows across the"
+                      " floor."))
       ;; First paragraph
       (let ((bounds (flywrite--unit-bounds-at-pos 1)))
-        (should (string-match-p "quick brown fox"
-                                (buffer-substring-no-properties (car bounds) (cdr bounds))))
-        (should (string-match-p "grocerys\\|store"
-                                (buffer-substring-no-properties (car bounds) (cdr bounds)))))
+        (should (string-match-p
+                 "quick brown fox"
+                 (buffer-substring-no-properties
+                  (car bounds) (cdr bounds))))
+        (should (string-match-p
+                 "grocerys\\|store"
+                 (buffer-substring-no-properties
+                  (car bounds) (cdr bounds)))))
       ;; Second paragraph
-      (let* ((para2-start (+ 1 (string-match "\n\nTheir"
-                                              (buffer-substring-no-properties 1 (point-max)))))
-             (bounds (flywrite--unit-bounds-at-pos (+ 3 para2-start))))
-        (should (string-match-p "Their going"
-                                (buffer-substring-no-properties (car bounds) (cdr bounds))))))))
+      (let* ((para2-start
+              (+ 1 (string-match
+                    "\n\nTheir"
+                    (buffer-substring-no-properties
+                     1 (point-max)))))
+             (bounds (flywrite--unit-bounds-at-pos
+                      (+ 3 para2-start))))
+        (should (string-match-p
+                 "Their going"
+                 (buffer-substring-no-properties
+                  (car bounds) (cdr bounds))))))))
 
 
 (ert-deftest flywrite-test-collect-units-paragraphs ()
@@ -317,7 +365,11 @@
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
-      (insert "First paragraph content here.\n\nSecond paragraph content here.\n\nThird paragraph content here.")
+      (insert (concat "First paragraph content here."
+                      "\n\n"
+                      "Second paragraph content here."
+                      "\n\n"
+                      "Third paragraph content here."))
       (let ((units (flywrite--collect-units-in-region 1 (point-max))))
         (should (= (length units) 3)))
       (flywrite-mode -1))))
@@ -330,11 +382,18 @@
   "Sentence detection works inside LaTeX document body (latex-simple.tex)."
   (let ((flywrite-granularity 'sentence))
     (with-temp-buffer
-      (insert "\\begin{document}\n\nThe quick brown fox jumpted over the lazy dog. Him and his friend went to the store.\n\n\\end{document}")
+      (insert (concat "\\begin{document}\n\n"
+                      "The quick brown fox jumpted"
+                      " over the lazy dog. "
+                      "Him and his friend went"
+                      " to the store."
+                      "\n\n\\end{document}"))
       ;; Find a sentence inside the document body
       (let ((bounds (flywrite--unit-bounds-at-pos 20)))
-        (should (string-match-p "quick brown fox"
-                                (buffer-substring-no-properties (car bounds) (cdr bounds))))))))
+        (should (string-match-p
+                 "quick brown fox"
+                 (buffer-substring-no-properties
+                  (car bounds) (cdr bounds))))))))
 
 
 (ert-deftest flywrite-test-collect-units-latex-prose ()
@@ -344,8 +403,13 @@
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
-      (insert "The quick brown fox jumpted over the lazy dog. Him and his friend went to the store to buy some grocerys.")
-      (let ((units (flywrite--collect-units-in-region 1 (point-max))))
+      (insert (concat "The quick brown fox jumpted"
+                      " over the lazy dog. "
+                      "Him and his friend went to"
+                      " the store to buy some"
+                      " grocerys."))
+      (let ((units (flywrite--collect-units-in-region
+                    1 (point-max))))
         (should (= (length units) 2)))
       (flywrite-mode -1))))
 
@@ -500,7 +564,7 @@
       (text-mode)
       (flywrite-mode 1)
       (let ((called nil))
-        (flywrite-flymake (lambda (diags) (setq called t)))
+        (flywrite-flymake (lambda (_diags) (setq called t)))
         (should called)
         (should flywrite--report-fn))
       (flywrite-mode -1))))
@@ -514,7 +578,8 @@
       (flywrite-mode 1)
       (insert "Test text.")
       ;; Add a fake diagnostic
-      (push (flymake-make-diagnostic (current-buffer) 1 5 :note "test [flywrite]")
+      (push (flymake-make-diagnostic
+             (current-buffer) 1 5 :note "test [flywrite]")
             flywrite--diagnostics)
       (let ((reported nil))
         (flywrite-flymake (lambda (diags) (setq reported diags)))
@@ -529,7 +594,9 @@
   "Falls back to FLYWRITE_API_KEY env var."
   (let ((flywrite-api-key nil)
         (flywrite-api-key-file nil)
-        (process-environment (cons "FLYWRITE_API_KEY=sk-env-123" process-environment)))
+        (process-environment
+         (cons "FLYWRITE_API_KEY=sk-env-123"
+               process-environment)))
     (should (string= (flywrite--get-api-key) "sk-env-123"))))
 
 
@@ -538,7 +605,9 @@
   (let* ((tmpfile (make-temp-file "flywrite-test-key"))
          (flywrite-api-key "sk-direct")
          (flywrite-api-key-file tmpfile)
-         (process-environment (cons "FLYWRITE_API_KEY=sk-env" process-environment)))
+         (process-environment
+          (cons "FLYWRITE_API_KEY=sk-env"
+                process-environment)))
     (unwind-protect
         (progn
           (with-temp-file tmpfile (insert "sk-from-file\n"))
@@ -796,7 +865,10 @@
             (insert "HTTP/1.1 529 Overloaded\r\n\r\n{}")
             (goto-char (point-min))
             (flywrite--handle-response status buf 1 15 hash (current-time))))
-        (should (cl-some (lambda (m) (string-match-p "overloaded" m)) messages)))
+        (should (cl-some
+                 (lambda (m)
+                   (string-match-p "overloaded" m))
+                 messages)))
       (flywrite-mode -1))))
 
 
@@ -874,7 +946,7 @@
 
 (ert-deftest flywrite-test-validate-config-no-api-key-gemini ()
   "Config validation signals error when Gemini API key is missing."
-  (let ((flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
+  (let ((flywrite-api-url flywrite-test--gemini-url)
         (flywrite-api-key nil)
         (flywrite-api-key-file nil)
         (process-environment (cons "FLYWRITE_API_KEY=" process-environment)))
@@ -898,7 +970,7 @@
 
 
 (ert-deftest flywrite-test-e2e-mock-api ()
-  "End-to-end: insert error, check, verify diagnostic, fix, re-check, verify clear."
+  "End-to-end: insert error, check, fix, re-check, verify."
   (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
          (flywrite-api-key "sk-fake-test-key")
          (flywrite-granularity 'sentence)
@@ -916,7 +988,7 @@
 
       ;; Enable flywrite-mode (mocking url-retrieve to prevent real HTTP)
       (cl-letf (((symbol-function 'url-retrieve)
-                 (lambda (url callback &optional _cbargs _silent _inhibit)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
                    (cl-incf api-call-count)
                    (let ((resp-buf (flywrite-test--make-response-buffer
                                     mock-response-json)))
@@ -930,13 +1002,17 @@
         (flywrite-mode 1)
 
         ;; Set mock response: one suggestion for "Him"
-        (setq mock-response-json
-              (json-encode
-               `((choices . [((message . ((content .
-                  ,(json-encode
-                    '((suggestions . [((quote . "Him")
-                                       (reason . "Use \"He\" (subject pronoun)"))])))
-                  ))))]))))
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)")
+                             )])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
 
         ;; Trigger check: dirty the sentence and fire the idle timer
         (flywrite--after-change 1 (point-max) 0)
@@ -959,16 +1035,18 @@
         (insert "He")
 
         ;; --- Step 5: Set mock response: no suggestions ---
-        (setq mock-response-json
-              (json-encode
-               `((choices . [((message . ((content .
-                  ,(json-encode '((suggestions . [])))
-                  ))))]))))
+        (let ((inner (json-encode
+                      '((suggestions . [])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
 
-        ;; Fire idle timer to dispatch re-check of edited sentence
+        ;; Fire idle timer to dispatch re-check
         (flywrite--idle-timer-fn (current-buffer))
 
-        ;; --- Step 6: Verify diagnostic was removed and API was called again ---
+        ;; --- Step 6: Verify diagnostic removed, API called ---
         (should (= api-call-count 2))
         (should (= (length flywrite--diagnostics) 0)))
 
@@ -1027,7 +1105,7 @@
 (ert-deftest flywrite-test-effective-model-gemini ()
   "Auto-detect Gemini model from URL."
   (let ((flywrite-api-model nil)
-        (flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"))
+        (flywrite-api-url flywrite-test--gemini-url))
     (should (string= (flywrite--effective-model)
                      flywrite--default-model-gemini))))
 

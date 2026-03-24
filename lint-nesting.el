@@ -12,12 +12,12 @@
 
 (defvar lint-nesting--control-forms
   '(if when unless cond cl-case pcase pcase-let
-    let let*
-    while dolist dotimes
-    condition-case unwind-protect
-    save-excursion save-restriction save-match-data
-    with-current-buffer with-temp-buffer
-    lambda)
+       let let*
+       while dolist dotimes
+       condition-case unwind-protect
+       save-excursion save-restriction save-match-data
+       with-current-buffer with-temp-buffer
+       lambda)
   "Forms that count as control-flow nesting.")
 
 (defun lint-nesting--walk (form depth)
@@ -56,10 +56,11 @@
                   (when (> max-d lint-nesting-max-depth)
                     (save-excursion
                       (goto-char start)
-                      (push (format "%s:%d: %s has control-flow depth %d (max %d)"
-                                    lint-nesting-file
-                                    (line-number-at-pos)
-                                    name max-d lint-nesting-max-depth)
+                      (push (format
+                             "%s:%d: %s has control-flow depth %d (max %d)"
+                             lint-nesting-file
+                             (line-number-at-pos)
+                             name max-d lint-nesting-max-depth)
                             violations)))))))
         (end-of-file nil))
       (dolist (v (nreverse violations))

@@ -7,14 +7,24 @@ set -Eeuo pipefail
 # Run from project directory
 cd "$(dirname "$0")"
 
+# Emacs Lisp source files
+EL_FILE_PACKAGE=flywrite-mode.el
+EL_FILES_TESTS=(
+  lint-nesting.el
+  test-flywrite.el
+  test-flywrite-prompt.el
+)
+EL_FILES=("$EL_FILE_PACKAGE" "${EL_FILES_TESTS[@]}")
+
 # Byte-compile check
 echo "Byte-compile check"
 emacs \
   -Q --batch \
   --eval "(setq byte-compile-error-on-warn t)" \
+  --eval "(push default-directory load-path)" \
   -f batch-byte-compile \
-  flywrite-mode.el
-rm -f flywrite-mode.elc
+  "${EL_FILES[@]}"
+rm -f *.elc
 
 # Run a command and fail if it produces any output on stdout.
 check_quiet() {
@@ -26,52 +36,81 @@ check_quiet() {
 }
 
 # Lint: elint
+ELINT_INIT='(progn
+  (require (quote elint))
+  (push default-directory load-path)
+  (dolist (f command-line-args-left)
+    (elint-file f))
+  (with-current-buffer "*Elint*"
+    (princ (buffer-string)))
+  (setq command-line-args-left nil))'
 echo "Lint: elint"
 check_quiet \
-  emacs -Q --batch \
-    --eval "(require 'elint)" \
-    --eval "(elint-file \"flywrite-mode.el\")" \
-    --eval "(with-current-buffer \"*Elint*\"
-              (princ (buffer-string)))"
+  emacs \
+    -Q --batch \
+    --eval "$ELINT_INIT" \
+    "${EL_FILES[@]}"
 
 # Lint: elisp-lint
 # Install from MELPA, disable checks run separately, includes checkdoc
+ELISP_LINT_INIT='(progn
+  (require (quote package))
+  (add-to-list (quote package-archives)
+               (quote ("melpa" . "https://melpa.org/packages/")) t)
+  (package-initialize)
+  (unless (package-installed-p (quote elisp-lint))
+    (package-refresh-contents)
+    (package-install (quote elisp-lint)))
+  (require (quote elisp-lint))
+  (push default-directory load-path))'
 echo "Lint: elisp-lint"
-emacs -Q --batch \
-  --eval "(require 'package)" \
-  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
-  --eval "(package-initialize)" \
-  --eval "(unless (package-installed-p 'elisp-lint)
-            (package-refresh-contents)
-            (package-install 'elisp-lint))" \
-  --eval "(require 'elisp-lint)" \
+emacs \
+  -Q --batch \
+  --eval "$ELISP_LINT_INIT" \
   -f elisp-lint-files-batch \
-  flywrite-mode.el
+  "$EL_FILE_PACKAGE"
 
-# Lint: package-lint (MELPA submission checks)
+# Lint: elisp-lint
+# Test and utility files: skip package-lint and checkdoc (not packages)
+echo "Lint: elisp-lint (test/utility files)"
+emacs \
+  -Q --batch \
+  --eval "$ELISP_LINT_INIT" \
+  -f elisp-lint-files-batch \
+  --no-package-lint \
+  --no-checkdoc \
+  "${EL_FILES_TESTS[@]}"
+
+# Lint: package-lint
+PACKAGE_LINT_INIT='(progn
+  (require (quote package))
+  (add-to-list (quote package-archives)
+               (quote ("melpa" . "https://melpa.org/packages/")) t)
+  (package-initialize)
+  (unless (package-installed-p (quote package-lint))
+    (package-refresh-contents)
+    (package-install (quote package-lint)))
+  (require (quote package-lint)))'
 echo "Lint: package-lint"
-emacs -Q --batch \
-  --eval "(require 'package)" \
-  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
-  --eval "(package-initialize)" \
-  --eval "(unless (package-installed-p 'package-lint)
-            (package-refresh-contents)
-            (package-install 'package-lint))" \
-  --eval "(require 'package-lint)" \
+emacs \
+  -Q --batch \
+  --eval "$PACKAGE_LINT_INIT" \
   -f package-lint-batch-and-exit \
-  flywrite-mode.el
-rm -f flywrite-autoloads.el
+  "$EL_FILE_PACKAGE"
+rm -f flywrite-autoloads.el flywrite-autoloads.elc
 
 # Lint: nesting depth (control-flow forms only, max depth 6)
 echo "Lint: nesting depth"
 check_quiet \
-  emacs -Q --batch \
-  -l lint-nesting.el \
-  flywrite-mode.el
+  emacs \
+    -Q --batch \
+    -l lint-nesting.el \
+    "${EL_FILES[@]}"
 
 # Unit tests (filter expected flywrite log messages from stderr)
 echo "Unit tests"
-emacs -Q --batch \
+emacs \
+  -Q --batch \
   -l flywrite-mode.el \
   -l test-flywrite.el \
   -f ert-run-tests-batch-and-exit \
@@ -79,10 +118,11 @@ emacs -Q --batch \
 
 # Prompt regression tests (requires API key or cached responses)
 echo "Prompt regression tests"
-emacs -Q --batch \
- -l flywrite-mode.el \
- -l test-flywrite-prompt.el \
- -f ert-run-tests-batch-and-exit
+emacs \
+  -Q --batch \
+  -l flywrite-mode.el \
+  -l test-flywrite-prompt.el \
+  -f ert-run-tests-batch-and-exit
 
 # Check: README system prompt matches source
 echo "Check: README system prompt matches source"
@@ -100,3 +140,7 @@ diff <( \
   }' README.md \
   | sed '1s/^  "//; $s/")$//' \
 )
+
+echo "########################################"
+echo "# $0 PASS"
+echo "########################################"

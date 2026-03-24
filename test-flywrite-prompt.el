@@ -1,4 +1,4 @@
-;;; test-flywrite-prompt.el --- Prompt regression tests -*- lexical-binding: t; indent-tabs-mode: nil; fill-column: 80; -*-
+;;; test-flywrite-prompt.el --- Prompt regression tests  -*- lexical-binding: t; indent-tabs-mode: nil; fill-column: 80; -*-
 
 ;;; Commentary:
 
@@ -24,53 +24,78 @@
 
 ;;;; ---- Test inputs ----
 (defconst flywrite-prompt-test--inputs
-  '((:text "The quick brown fox jumped over the lazy dog."
-     :description "clean"
-     :expected ((prose . 0) (academic . 0)))
-    (:text "The morning light filtered through the curtains and cast long shadows across the floor."
-     :description "clean"
-     :expected ((prose . 0) (academic . 0)))
-    (:text "She picked up her coffee, took a quiet sip, and turned to the first page of the newspaper."
-     :description "clean"
-     :expected ((prose . 0) (academic . 0)))
-    (:text "The results don't support the hypothesis, and it's really not a big deal."
-     :description "contractions and informal language in academic writing"
-     :expected ((prose . 1) (academic . 3)))
-    (:text "Him and his friend went to the store to buy some grocerys."
-     :description "pronoun case error and misspelling"
-     :expected ((prose . 2) (academic . 2)))
-    (:text "Their going to the park later today, irregardless of the rain."
-     :description "wrong homophone and nonstandard word"
-     :expected ((prose . 2) (academic . 2)))
-    (:text "Each of the students need to submit there homework by Friday."
-     :description "subject-verb disagreement and wrong homophone"
-     :expected ((prose . 2) (academic . 2)))
-    (:text "She could of finished the report on time if she would have started earlier."
-     :description "could of and would have"
-     :expected ((prose . 2) (academic . 2)))
-    (:text "Between you and I, this project is more bigger than we expected."
-     :description "pronoun case and double comparative"
-     :expected ((prose . 2) (academic . 2)))
-    (:text "The weather was very extremely hot outside yesterday."
-     :description "redundant intensifiers"
-     :expected ((prose . 1) (academic . 1)))
+  `((:text "The quick brown fox jumped over the lazy dog."
+           :description "clean"
+           :expected ((prose . 0) (academic . 0)))
+    (:text ,(concat "The morning light filtered through the "
+                    "curtains and cast long shadows across "
+                    "the floor.")
+           :description "clean"
+           :expected ((prose . 0) (academic . 0)))
+    (:text ,(concat "She picked up her coffee, took a quiet "
+                    "sip, and turned to the first page of "
+                    "the newspaper.")
+           :description "clean"
+           :expected ((prose . 0) (academic . 0)))
+    (:text ,(concat "The results don't support the "
+                    "hypothesis, and it's really not "
+                    "a big deal.")
+           :description ,(concat "contractions and informal "
+                                 "language in academic writing")
+           :expected ((prose . 1) (academic . 3)))
+    (:text ,(concat "Him and his friend went to the store "
+                    "to buy some grocerys.")
+           :description "pronoun case error and misspelling"
+           :expected ((prose . 2) (academic . 2)))
+    (:text ,(concat "Their going to the park later today, "
+                    "irregardless of the rain.")
+           :description "wrong homophone and nonstandard word"
+           :expected ((prose . 2) (academic . 2)))
+    (:text ,(concat "Each of the students need to submit "
+                    "there homework by Friday.")
+           :description ,(concat "subject-verb disagreement "
+                                 "and wrong homophone")
+           :expected ((prose . 2) (academic . 2)))
+    (:text ,(concat "She could of finished the report on "
+                    "time if she would have started "
+                    "earlier.")
+           :description "could of and would have"
+           :expected ((prose . 2) (academic . 2)))
+    (:text ,(concat "Between you and I, this project is "
+                    "more bigger than we expected.")
+           :description "pronoun case and double comparative"
+           :expected ((prose . 2) (academic . 2)))
+    (:text ,(concat "The weather was very extremely hot "
+                    "outside yesterday.")
+           :description "redundant intensifiers"
+           :expected ((prose . 1) (academic . 1)))
     ;; From samples/example.txt
-    (:text "The optimization had a significant affect on runtime performance."
-     :description "affect/effect, weasel word"
-     :expected ((prose . 1) (academic . 2)))
-    (:text "The benchmarks show the approach is more efficient then brute force search."
-     :description "then/than word-choice error"
-     :expected ((prose . 1) (academic . 1)))
+    (:text ,(concat "The optimization had a significant "
+                    "affect on runtime performance.")
+           :description "affect/effect, weasel word"
+           :expected ((prose . 1) (academic . 2)))
+    (:text ,(concat "The benchmarks show the approach is "
+                    "more efficient then brute force "
+                    "search.")
+           :description "then/than word-choice error"
+           :expected ((prose . 1) (academic . 1)))
     (:text "We feel the results are promising."
-     :description "subjective, vague"
-     :expected ((prose . 0) (academic . 2)))
+           :description "subjective, vague"
+           :expected ((prose . 0) (academic . 2)))
     ;; From samples/text-general-and-academic.txt
-    (:text "The students who was in the program recieved there certificates at the ceremony last friday."
-     :description "subject-verb agreement, misspelling, homophone, and capitalization"
-     :expected ((prose . 4) (academic . 4)))
-    (:text "So, the results clearly show that this has a positive impact on stuff."
-     :description "informal transition, subjective qualifier, ambiguous \"this\", vague term"
-     :expected ((prose . 1) (academic . 4))))
+    (:text ,(concat "The students who was in the program "
+                    "recieved there certificates at the "
+                    "ceremony last friday.")
+           :description ,(concat "subject-verb agreement, "
+                                 "misspelling, homophone, "
+                                 "and capitalization")
+           :expected ((prose . 4) (academic . 4)))
+    (:text ,(concat "So, the results clearly show that "
+                    "this has a positive impact on stuff.")
+           :description ,(concat "informal transition, subjective "
+                                 "qualifier, ambiguous \"this\", "
+                                 "vague term")
+           :expected ((prose . 1) (academic . 4))))
   "Test inputs: each entry is a plist with :text, :description, :expected.
 :expected is an alist mapping each prompt style symbol to its
 expected suggestion count, e.g., ((prose . 0) (academic . 2)).
@@ -159,9 +184,9 @@ Prompts are sorted by hash."
                                          flywrite-prompt-test--cache)
                                  #'flywrite-prompt-test--entry<))
            (sorted-prompts (or (sort (copy-sequence
-                                     flywrite-prompt-test--prompts)
-                                    (lambda (a b) (string< (car a) (car b))))
-                              (make-hash-table)))
+                                      flywrite-prompt-test--prompts)
+                                     (lambda (a b) (string< (car a) (car b))))
+                               (make-hash-table)))
            (obj `(("prompts" . ,sorted-prompts)
                   ("entries" . ,sorted-entries))))
       (insert (json-encode obj)))
@@ -192,12 +217,13 @@ TEXT, MODEL, PROMPT-HASH, and TEMPERATURE form the cache key.
 PROMPT-TEXT is the system prompt string (stored in the prompts table).
 RESPONSE is the raw API response string; it is parsed to JSON for storage."
   (let* ((response-obj (flywrite-prompt-test--parse-response-string response))
+         (ts (format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t))
          (entry `(("text" . ,text)
                   ("model" . ,model)
                   ("prompt_hash" . ,prompt-hash)
                   ("temperature" . ,temperature)
                   ("response" . ,response-obj)
-                  ("timestamp" . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" nil t)))))
+                  ("timestamp" . ,ts))))
     (setf (alist-get prompt-hash flywrite-prompt-test--prompts
                      nil nil #'equal)
           prompt-text)

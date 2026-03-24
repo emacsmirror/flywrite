@@ -996,8 +996,8 @@ SEEN is a hash table for deduplication within this batch."
       (setq flywrite--dirty-registry nil)
       (dolist (entry snapshot)
         (flywrite--dispatch-entry buf
-                                 (nth 0 entry) (nth 1 entry) (nth 2 entry)
-                                 seen)))))
+                                  (nth 0 entry) (nth 1 entry) (nth 2 entry)
+                                  seen)))))
 
 
 (defun flywrite--idle-timer-fn (buf)

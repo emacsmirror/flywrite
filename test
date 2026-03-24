@@ -24,7 +24,7 @@ emacs \
   --eval "(push default-directory load-path)" \
   -f batch-byte-compile \
   "${EL_FILES[@]}"
-rm -f *.elc
+rm -f ./*.elc
 
 # Lint: elint
 ELINT_INIT='(progn
@@ -107,7 +107,7 @@ emacs \
   -l flywrite-mode.el \
   -l test-flywrite.el \
   -f ert-run-tests-batch-and-exit \
-  2>&1 | grep -v '^flywrite:' >&2
+  2>&1 | { grep -v '^flywrite:' >&2 || true; }
 
 # Prompt regression tests (requires API key or cached responses)
 echo "Prompt regression tests"

@@ -1204,6 +1204,25 @@ Prompts for confirmation when the count exceeds
   (message "flywrite: cleared all diagnostics and caches"))
 
 
+(defun flywrite-set-prompt (style)
+  "Set the system prompt for the current buffer.
+STYLE is a symbol from `flywrite--prompt-alist' (e.g., `prose'
+or `academic'), chosen interactively with completion."
+  (interactive
+   (let* ((styles (mapcar (lambda (c) (symbol-name (car c)))
+                          flywrite--prompt-alist))
+          (current (if (symbolp flywrite-system-prompt)
+                       (symbol-name flywrite-system-prompt)
+                     nil))
+          (choice (completing-read
+                   (format "Prompt style (current: %s): "
+                           (or current "custom"))
+                   styles nil t nil nil current)))
+     (list (intern choice))))
+  (setq-local flywrite-system-prompt style)
+  (message "flywrite: prompt set to %s" style))
+
+
 (defun flywrite--prompt-watcher (_symbol newval operation where)
   "Handle a `flywrite-system-prompt' change by clearing diagnostics.
 OPERATION is the type of change; NEWVAL is the new value; WHERE

@@ -224,6 +224,7 @@ without needing to edit."
   "Map from \"beg-end\" region key to the last-known content hash.
 Used by `after-change' to find and remove stale checked-unit entries.")
 
+
 (defvar flywrite--response-handled nil
   "Non-nil when a `url-retrieve' callback has already been processed.
 Set buffer-locally in HTTP response buffers to guard against
@@ -497,6 +498,7 @@ BEG and END are the changed region boundaries."
       (error
        (flywrite--log "Error in after-change: %s buf=%s" (error-message-string err) (buffer-name))))))
 
+
 ;;;; ---- API call ----
 
 
@@ -512,7 +514,7 @@ Signal an error if the file is set but not readable."
                   (insert-file-contents flywrite-api-key-file)
                   (buffer-substring-no-properties
                    (point-min) (line-end-position))))))
-      (when (> (length key) 0) key))))
+      (unless (string-empty-p key) key))))
 
 
 (defun flywrite--get-api-key ()
@@ -628,7 +630,7 @@ Signal an error if configuration is invalid, preventing mode activation."
                                (local-p "none (local provider)")
                                (t "none")))
           (when (and (not api-key) (not local-p))
-            (error "API key is not set.  See the README for configuration")))
+            (error "API key is not set, see the README for configuration")))
 
         ;; Model resolves without error
         (flywrite--log "API model: %s" (flywrite--effective-model))
@@ -653,7 +655,7 @@ HASH is the content hash at time of dispatch for stale checking."
       (flywrite--log "Skipping already-checked hash=%s" hash)
     (unless flywrite-api-url
       (flywrite--log "ERROR: flywrite-api-url is not set")
-      (error "Set flywrite-api-url before use.  See the README for configuration"))
+      (error "Set flywrite-api-url before use, see the README for configuration"))
 
     ;; Extract text and build the HTTP request (headers + JSON payload).
     (condition-case err
@@ -661,7 +663,7 @@ HASH is the content hash at time of dispatch for stale checking."
                        (buffer-substring-no-properties beg end)))
                (api-key (flywrite--get-api-key))
                (_ (when (and (flywrite--anthropic-api-p) (not api-key))
-                    (error "Anthropic API requires an API key")))
+                    (error "An API key is required for the Anthropic API")))
                (request (flywrite--build-request text api-key))
                (payload (car request))
                (url-request-method "POST")
@@ -691,7 +693,8 @@ HASH is the content hash at time of dispatch for stale checking."
       (error
        (flywrite--log "Request error: %s url=%s hash=%s"
                       (error-message-string err) flywrite-api-url hash)
-       (message "flywrite: request error.  Check *flywrite-log* for details.")))))
+       (message "flywrite: request error, check *flywrite-log* for details")))))
+
 
 ;;;; ---- Response handler helpers ----
 
@@ -828,7 +831,7 @@ BEG, END, HASH identify the checked region."
     (error
      (flywrite--log "LLM returned unparseable response: %s hash=%s\nRaw text: %s"
                     (error-message-string parse-err) hash text)
-     (message "flywrite: LLM returned invalid JSON.  Check *flywrite-log* for details."))))
+     (message "flywrite: LLM returned invalid JSON, check *flywrite-log* for details"))))
 
 
 (defun flywrite--make-suggestion-diagnostic (buf beg region-text suggestion hash)
@@ -1183,11 +1186,10 @@ Respects `flywrite-granularity'."
   (flywrite--log "Cleared all diagnostics and caches")
   (message "flywrite: cleared all diagnostics and caches"))
 
+
 ;;;; ---- Minor mode definition ----
 
 ;;;###autoload
-
-
 (define-minor-mode flywrite-mode
   "Minor mode for inline writing suggestions via LLM.
 Provides grammar, clarity, and style feedback as flymake diagnostics."

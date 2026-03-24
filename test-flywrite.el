@@ -1060,6 +1060,98 @@
   (let ((flywrite-system-prompt 'nonexistent))
     (should-error (flywrite--get-system-prompt) :type 'error)))
 
+
+(ert-deftest flywrite-test-prompt-safe-local-variable-builtin ()
+  "Built-in prompt styles are safe as file-local variables."
+  (let ((safe-p (get 'flywrite-system-prompt 'safe-local-variable)))
+    (should (functionp safe-p))
+    (should (funcall safe-p 'prose))
+    (should (funcall safe-p 'academic))))
+
+
+(ert-deftest flywrite-test-prompt-safe-local-variable-rejects-string ()
+  "Custom string prompts are not safe as file-local variables."
+  (let ((safe-p (get 'flywrite-system-prompt 'safe-local-variable)))
+    (should-not (funcall safe-p "my custom prompt"))))
+
+
+(ert-deftest flywrite-test-prompt-safe-local-variable-rejects-unknown ()
+  "Unknown symbols are not safe as file-local variables."
+  (let ((safe-p (get 'flywrite-system-prompt 'safe-local-variable)))
+    (should-not (funcall safe-p 'nonexistent))))
+
+
+(ert-deftest flywrite-test-prompt-file-local-variable ()
+  "Setting `flywrite-system-prompt' via file-local variable works."
+  (let ((temp-file (make-temp-file "flywrite-test" nil ".txt")))
+    (unwind-protect
+        (progn
+          (with-temp-file temp-file
+            (insert
+             "-*- flywrite-system-prompt: prose -*-\n\n"
+             "Some sample text.\n"))
+          (with-current-buffer (find-file-noselect temp-file)
+            (unwind-protect
+                (should (eq flywrite-system-prompt 'prose))
+              (kill-buffer))))
+      (delete-file temp-file))))
+
+
+(ert-deftest flywrite-test-prompt-change-clears-diagnostics ()
+  "Changing `flywrite-system-prompt' clears diagnostics in active buffers."
+  (with-temp-buffer
+    (let ((flywrite-api-url "https://api.anthropic.com/v1/messages")
+          (flywrite-api-key "test-key")
+          (flywrite-system-prompt 'academic))
+      (flywrite-mode 1)
+      (setq flywrite--diagnostics '(fake-diag))
+      (setq-local flywrite-system-prompt 'prose)
+      (should (null flywrite--diagnostics))
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-prompt-watcher-logs-new-prompt ()
+  "Watcher logs the new prompt text, not the stale pre-set value."
+  (with-temp-buffer
+    (let ((flywrite-api-url "https://api.anthropic.com/v1/messages")
+          (flywrite-api-key "test-key")
+          (flywrite-debug t)
+          (flywrite-system-prompt 'academic))
+      (flywrite-mode 1)
+      (setq-local flywrite-system-prompt 'prose)
+      (with-current-buffer (get-buffer-create "*flywrite-log*")
+        (should (string-match-p "System prompt changed to prose"
+                                (buffer-string)))
+        (should (string-match-p (regexp-quote flywrite--prose-prompt)
+                                (buffer-string)))
+        ;; The "System prompt:" log entry should NOT contain the
+        ;; academic prompt (which would indicate a stale read).
+        (should-not (string-match-p
+                     (regexp-quote "Flag informal language")
+                     (buffer-string))))
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-prompt-watcher-skips-before-enable ()
+  "Watcher does not fire when idle-timer is nil (before deferred enable)."
+  (with-temp-buffer
+    (let ((flywrite-api-url "https://api.anthropic.com/v1/messages")
+          (flywrite-api-key "test-key")
+          (flywrite-debug t)
+          (flywrite-system-prompt 'academic))
+      ;; Simulate the state during find-file: flywrite-mode is t but
+      ;; flywrite--enable has not yet run (no idle timer).
+      (setq flywrite-mode t)
+      (let ((log-buf (get-buffer-create "*flywrite-log*")))
+        (with-current-buffer log-buf (erase-buffer))
+        (setq-local flywrite-system-prompt 'prose)
+        (with-current-buffer log-buf
+          (should-not (string-match-p "System prompt changed"
+                                      (buffer-string))))
+        ;; Diagnostics should be untouched (watcher didn't run clear)
+        (setq flywrite-mode nil)))))
+
+
 ;;;; ---- Effective model auto-detection ----
 
 

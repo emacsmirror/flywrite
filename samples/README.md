@@ -12,3 +12,4 @@ Files for manual end-to-end testing in Emacs. Open a file, run `M-x flywrite-mod
 | `markdown-code.md` | Markdown with headings, blockquotes, a code block, and errors (should skip code blocks) |
 | `markdown-simple.md` | Markdown with multiple paragraphs of errors plus clean prose |
 | `text-general-and-academic.txt` | Two paragraphs: general errors (flagged by `prose`), then academic-only errors (flagged by `academic`) |
+| `file-local-prose.txt` | `prose` prompt via file-local variable; general errors flagged, academic-only errors not flagged |

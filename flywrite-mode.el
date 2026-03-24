@@ -324,6 +324,10 @@ while preserving the JSON output format."
                  (string :tag "Custom prompt"))
   :group 'flywrite)
 
+;;;###autoload
+(put 'flywrite-system-prompt 'safe-local-variable
+     (lambda (v) (memq v '(prose academic))))
+
 
 (defun flywrite--get-system-prompt ()
   "Return the system prompt string.
@@ -630,11 +634,8 @@ Signal an error if configuration is invalid, preventing mode activation."
         ;; Model resolves without error
         (flywrite--log "API model: %s" (flywrite--effective-model))
 
-        ;; System prompt
-        (flywrite--log "prompt=%s"
-                       (if (symbolp flywrite-system-prompt)
-                           flywrite-system-prompt "custom"))
-        (flywrite--log "System prompt: %s" (flywrite--get-system-prompt))
+        ;; System prompt resolves without error
+        (flywrite--get-system-prompt)
         (flywrite--log "Config valid"))
     (error
      (flywrite--log "Config validation failed: %s" (error-message-string err))
@@ -1203,6 +1204,33 @@ Prompts for confirmation when the count exceeds
   (message "flywrite: cleared all diagnostics and caches"))
 
 
+(defun flywrite--prompt-watcher (_symbol newval operation where)
+  "Handle a `flywrite-system-prompt' change by clearing diagnostics.
+OPERATION is the type of change; NEWVAL is the new value; WHERE
+is the buffer for buffer-local sets or nil for global sets."
+  (when (eq operation 'set)
+    (let ((label (if (symbolp newval) (symbol-name newval) "custom"))
+          (bufs (if (and where (buffer-live-p where))
+                    (list where)
+                  (buffer-list)))
+          ;; Resolve from newval — the variable watcher fires before
+          ;; the variable is actually updated.
+          (prompt (let ((flywrite-system-prompt newval))
+                    (flywrite--get-system-prompt))))
+      (dolist (buf bufs)
+        (with-current-buffer buf
+          ;; Guard with flywrite--idle-timer so we skip changes that
+          ;; arrive before deferred enable (e.g., file-local variables
+          ;; processed during find-file).
+          (when (and flywrite-mode flywrite--idle-timer)
+            (flywrite--log "System prompt changed to %s in %s"
+                           label (buffer-name))
+            (flywrite--log "System prompt:\n%s" prompt)
+            (flywrite-clear)))))))
+
+(add-variable-watcher 'flywrite-system-prompt #'flywrite--prompt-watcher)
+
+
 ;;;; ---- Minor mode definition ----
 
 ;;;###autoload
@@ -1271,19 +1299,33 @@ Eglot replaces the buffer-local value with only its own backend."
         (run-with-idle-timer flywrite-idle-delay t
                              #'flywrite--idle-timer-fn (current-buffer)))
 
+  ;; Defer system prompt logging so file-local variables are in
+  ;; effect.  During find-file, mode hooks run before
+  ;; hack-local-variables; a 0-delay timer fires after find-file
+  ;; completes.
+  (let ((buf (current-buffer)))
+    (run-with-timer
+     0 nil
+     (lambda ()
+       (when (and (buffer-live-p buf)
+                  (buffer-local-value 'flywrite-mode buf))
+         (with-current-buffer buf
+           (flywrite--log "prompt=%s"
+                          (if (symbolp flywrite-system-prompt)
+                              flywrite-system-prompt "custom"))
+           (flywrite--log "System prompt:\n%s"
+                          (flywrite--get-system-prompt)))))))
+
   (flywrite--log (concat "flywrite-mode enabled in %s"
                          " (emacs %s, url=%s, model=%s,"
                          " idle=%.1f,"
                          " max-concurrent=%d, eager=%s,"
-                         " caching=%s, prompt=%s)")
+                         " caching=%s)")
                  (buffer-name) emacs-version
                  (or flywrite-api-url "nil")
                  (or flywrite-api-model "auto")
                  flywrite-idle-delay flywrite-max-concurrent
-                 flywrite-eager flywrite-enable-caching
-                 (if (symbolp flywrite-system-prompt)
-                     flywrite-system-prompt
-                   "custom")))
+                 flywrite-eager flywrite-enable-caching))
 
 
 (defun flywrite--disable ()

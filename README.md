@@ -67,11 +67,13 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 - `'prose`: grammar, clarity, and style feedback
 - `'academic` (default): adds rules for formal academic writing: contractions, hedging, weasel words, etc.
 
+**Per-user prompt:** Set the prompt style in your Emacs config. This applies to all files unless overridden by a per-file or per-directory setting.
+
 ```elisp
 (setq flywrite-system-prompt 'academic)  ; or 'prose
 ```
 
-**Custom prompt:** Copy the academic prompt below and modify the rules at the end. Keep the JSON format section unchanged, flywrite needs it to parse responses.
+**Custom prompt:** Copy the academic prompt below and modify the rules at the end. Keep the JSON format section unchanged, flywrite needs it to parse responses.  Longer prompts cost more per call.  Anthropic's prompt caching helps, but other providers may not cache. Keep custom prompts concise.
 
 ```elisp
 (setq flywrite-system-prompt
@@ -110,15 +112,23 @@ Rules:
   -- prefer 'Therefore', 'Additionally', 'Moreover'")
 ```
 
-**Note on prompt length:** Longer system prompts increase token usage and cost per API call. Anthropic's prompt caching (`flywrite-enable-caching`, on by default) mitigates this by caching the system prompt across calls, but other providers may not offer caching. If cost is a concern, keep your system prompt concise.
+**Per-file prompt:** Add a file-local variable at the top of a file to override the prompt style for that file only. Emacs will apply it automatically when the file is opened.
 
-### Settings
-Writing feedback settings:
+| File type | First-line variable |
+|-----------|---------------------|
+| Plain text | `-*- flywrite-system-prompt: prose -*-` |
+| LaTeX | `% -*- flywrite-system-prompt: prose -*-` |
+| Org mode | `# -*- flywrite-system-prompt: prose -*-` |
+| Markdown | `<!-- -*- flywrite-system-prompt: prose -*- -->` |
+
+**Per-directory prompt:** Create a `.dir-locals.el` file to set the prompt for all files in a directory:
+
 ```elisp
-(setq flywrite-system-prompt 'academic) ; 'prose, 'academic, or custom string
+((nil . ((flywrite-system-prompt . prose))))
 ```
 
-Performance settings:
+### Settings
+
 ```elisp
 (setq flywrite-idle-delay 1.5)          ; seconds before checking
 (setq flywrite-max-concurrent 3)        ; max parallel API calls

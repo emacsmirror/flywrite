@@ -1,0 +1,7 @@
+-*- flywrite-system-prompt: prose -*-
+
+This file uses the 'prose' prompt via a file-local variable on the first line.  Paragraph 1 has general prose errors which should be flagged.  Paragraph 2 has academic-only errors like hedging and weasel words which should not be flagged by the prose prompt.
+
+The students who was in the program recieved there certificates at the ceremony last friday. The commitee decided to postpone the event untill futher notice, irregardless of the complaints they recieved.
+
+I think that this is obviously the most important thing we need to address. We found that the treatment significantly improved outcomes, and a lot of participants felt that it was really effective. So, the results clearly show that this has a positive impact on stuff.

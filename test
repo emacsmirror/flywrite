@@ -46,7 +46,6 @@ emacs -Q --batch \
             (package-install 'elisp-lint))" \
   --eval "(require 'elisp-lint)" \
   -f elisp-lint-files-batch \
-  --no-byte-compile \
   --no-indent \
   --no-indent-character \
   --no-fill-column \
@@ -64,6 +63,7 @@ emacs -Q --batch \
   --eval "(require 'package-lint)" \
   -f package-lint-batch-and-exit \
   flywrite-mode.el
+rm -f flywrite-autoloads.el
 
 # Lint: nesting depth (control-flow forms only, max depth 6)
 echo "Lint: nesting depth"

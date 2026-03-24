@@ -479,7 +479,7 @@ Checks font-lock faces and major mode."
 
 
 (defun flywrite--after-change (beg end _len)
-  "Hook for `after-change-functions'.  Marks dirty units.
+  "Hook for `after-change-functions'.  Mark dirty units.
 BEG and END are the changed region boundaries."
   (when flywrite-mode
     (condition-case err
@@ -534,7 +534,7 @@ key is found (e.g., for local providers like Ollama)."
 
 
 (defun flywrite--effective-model ()
-  "Return the model to use for API calls.
+  "Return the model to use for API call.
 If `flywrite-api-model' is non-nil, return it.  Otherwise
 auto-detect from `flywrite-api-url'."
   (or flywrite-api-model
@@ -1033,7 +1033,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
 
 
 (defun flywrite-flymake (report-fn &rest _args)
-  "Flymake backend for flywrite.  Stores REPORT-FN for later use.
+  "Flymake backend for flywrite.  Store REPORT-FN for later use.
 Reports any existing diagnostics immediately so flymake can display them."
   (flywrite--log "flywrite-flymake called by flymake, report-fn set")
   (setq flywrite--report-fn report-fn)
@@ -1219,7 +1219,7 @@ Eglot replaces the buffer-local value with only its own backend."
 
 
 (defun flywrite--enable ()
-  "Set up flywrite-mode in the current buffer."
+  "Set up `flywrite-mode' in the current buffer."
   ;; Validate config before any setup — signals error on bad config
   (flywrite--validate-config)
 
@@ -1266,7 +1266,7 @@ Eglot replaces the buffer-local value with only its own backend."
 
 
 (defun flywrite--disable ()
-  "Tear down flywrite-mode in the current buffer."
+  "Tear down `flywrite-mode' in the current buffer."
   (flywrite--log "flywrite-mode disabled in %s (in-flight=%d, pending=%d, dirty=%d)"
                  (buffer-name) flywrite--in-flight
                  (length flywrite--pending-queue)

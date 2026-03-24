@@ -270,6 +270,8 @@ Rules:
   (e.g., comma before 'which', comma after introductory phrase,
   'like' vs 'such as', split infinitives, ending sentences
   with prepositions).  When a comma is optional, do not flag it.
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
 - Err on the side of not flagging.  Only flag clear, unambiguous errors.
 - Ignore markup like LaTeX, HTML, or Org-mode.")
 
@@ -291,10 +293,12 @@ Rules:
 - Keep reasons under 12 words
 - One entry per distinct issue
 - Do not flag correct text
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
 - Ignore markup like LaTeX, HTML, or Org-mode.
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging
-  (e.g., 'a lot', 'things', 'stuff', 'really')
+  (e.g., 'a lot', 'thing(s)', 'stuff', 'really')
 - Flag unsupported opinions
   (e.g., 'I think X is better') -- state evidence instead
 - Flag unsupported superlatives

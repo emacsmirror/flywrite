@@ -92,10 +92,12 @@ Rules:
 - Keep reasons under 12 words
 - One entry per distinct issue
 - Do not flag correct text
-- Only evaluate prose content.  Ignore markup like LaTeX, HTML, or Org-mode.
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
+- Ignore markup like LaTeX, HTML, or Org-mode.
 - Flag informal language, contractions, and colloquialisms
 - Flag vague hedging
-  (e.g., 'a lot', 'things', 'stuff', 'really')
+  (e.g., 'a lot', 'thing(s)', 'stuff', 'really')
 - Flag unsupported opinions
   (e.g., 'I think X is better') -- state evidence instead
 - Flag unsupported superlatives

@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-flywrite-mode is an Emacs minor mode that provides inline writing suggestions powered by an LLM API. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area. The UX goal is unobtrusive, always-on feedback (like Flyspell but for style/clarity, built on flymake).
+flywrite is an Emacs package providing `flywrite-mode`, a minor mode for inline writing suggestions powered by an LLM API. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area. The UX goal is unobtrusive, always-on feedback (like Flyspell but for style/clarity, built on flymake).
 
-The entire package lives in a single file: `flywrite-mode.el`. Unit tests are in `test-flywrite.el`. Prompt regression tests are in `test-flywrite-prompt.el` (sends samples to a real LLM API for every prompt style); its cache file `test-flywrite-prompt-cache.json` is managed by the test runner and should never be edited manually. Sample files in `samples/` are used for manual end-to-end testing in Emacs.
+The entire package lives in a single file: `flywrite.el`. Unit tests are in `test-flywrite.el`. Prompt regression tests are in `test-flywrite-prompt.el` (sends samples to a real LLM API for every prompt style); its cache file `test-flywrite-prompt-cache.json` is managed by the test runner and should never be edited manually. Sample files in `samples/` are used for manual end-to-end testing in Emacs.
 
 ## Development
 
@@ -14,7 +14,7 @@ This is a pure Emacs Lisp package with no build system and no external dependenc
 
 **Load for development** (in Emacs):
 ```elisp
-(load-file "/path/to/flywrite-mode.el")
+(load-file "/path/to/flywrite.el")
 ```
 
 **Regression test** (linting + byte-compile + ERT unit tests):
@@ -31,17 +31,17 @@ The `./test` script runs these checks in order:
 
 **Byte-compile check** (standalone):
 ```bash
-emacs -Q --batch --eval "(setq byte-compile-error-on-warn t)" -f batch-byte-compile flywrite-mode.el && rm -f flywrite-mode.elc
+emacs -Q --batch --eval "(setq byte-compile-error-on-warn t)" -f batch-byte-compile flywrite.el && rm -f flywrite.elc
 ```
 
 **Run a single ERT test by name:**
 ```bash
-emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
+emacs -Q --batch -l flywrite.el -l test-flywrite.el --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
 ```
 
 **Requires:** Emacs 29.1+, an LLM API key (via `flywrite-api-key-file` (recommended), `flywrite-api-key`, or `FLYWRITE_API_KEY` env var). API key is optional for local providers like Ollama.
 
-**README consistency:** Default values shown in the README (including the system prompt) must match the source code in `flywrite-mode.el`. When changing defaults, update both.
+**README consistency:** Default values shown in the README (including the system prompt) must match the source code in `flywrite.el`. When changing defaults, update both.
 
 **Samples README consistency:** When adding, removing, or renaming files in `samples/`, update the table in `samples/README.md` to match.
 

@@ -1,4 +1,4 @@
-;;; flywrite-mode.el --- Inline writing suggestions via LLM -*- lexical-binding: t; indent-tabs-mode: nil; fill-column: 80; -*-
+;;; flywrite.el --- Inline writing suggestions via LLM -*- lexical-binding: t; indent-tabs-mode: nil; fill-column: 80; -*-
 
 ;; Copyright (C) 2026 Andrew DeOrio
 
@@ -1413,6 +1413,6 @@ Eglot replaces the buffer-local value with only its own backend."
   (clrhash flywrite--checked-paragraphs)
   (clrhash flywrite--region-hashes))
 
-(provide 'flywrite-mode)
+(provide 'flywrite)
 
-;;; flywrite-mode.el ends here
+;;; flywrite.el ends here

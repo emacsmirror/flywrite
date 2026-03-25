@@ -11,13 +11,13 @@
 ;; redundant API calls.
 ;;
 ;; Run with:
-;;   emacs -Q --batch -l flywrite-mode.el -l test-flywrite-prompt.el \
+;;   emacs -Q --batch -l flywrite.el -l test-flywrite-prompt.el \
 ;;     -f ert-run-tests-batch-and-exit
 
 ;;; Code:
 
 (require 'ert)
-(require 'flywrite-mode)
+(require 'flywrite)
 (require 'json)
 (require 'url)
 (require 'url-http)

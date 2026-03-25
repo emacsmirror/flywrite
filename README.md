@@ -1,4 +1,4 @@
-# flywrite-mode
+# flywrite
 
 An Emacs minor mode for LLM-powered grammar, style, and academic writing feedback. Suggestions appear as flymake diagnostics with inline explanations. Features a [customizable prompt](#system-prompt) and [flexible API provider](#api-providers) support.
 
@@ -14,7 +14,7 @@ Add credits at https://platform.claude.com/settings/billing — as of Spring 202
 
 Add to your init file (Emacs 30+):
 ```elisp
-(use-package flywrite-mode
+(use-package flywrite
   :ensure t
   :vc (:url "https://github.com/awdeorio/flywrite" :branch "main" :rev :newest)
   :commands (flywrite-mode)
@@ -37,7 +37,7 @@ git clone https://github.com/awdeorio/flywrite.git ~/src/flywrite
 
 Configure.
 ```elisp
-(use-package flywrite-mode
+(use-package flywrite
   :load-path "~/src/flywrite"
   :commands (flywrite-mode)
   :config

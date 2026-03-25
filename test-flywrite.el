@@ -1,15 +1,15 @@
-;;; test-flywrite.el --- ERT tests for flywrite-mode -*- lexical-binding: t; indent-tabs-mode: nil; fill-column: 80; -*-
+;;; test-flywrite.el --- ERT tests for flywrite -*- lexical-binding: t; indent-tabs-mode: nil; fill-column: 80; -*-
 
 ;;; Commentary:
 
 ;; Run with:
-;;   emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el \
+;;   emacs -Q --batch -l flywrite.el -l test-flywrite.el \
 ;;     -f ert-run-tests-batch-and-exit
 
 ;;; Code:
 
 (require 'ert)
-(require 'flywrite-mode)
+(require 'flywrite)
 
 (defvar flywrite-test--gemini-url
   (concat "https://generativelanguage.googleapis.com"

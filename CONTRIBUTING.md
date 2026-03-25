@@ -12,8 +12,8 @@ git clone https://github.com/awdeorio/flywrite.git ~/src/flywrite
 
 Configure.
 ```elisp
-(use-package flywrite-mode
-  :load-path "/path/to/flywrite-mode.el"
+(use-package flywrite
+  :load-path "/path/to/flywrite.el"
   :commands (flywrite-mode)
   :config
   (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
@@ -28,7 +28,7 @@ Requirements: Emacs 29.1+, an LLM API key (see
 [README](README.md) for provider setup). API key is optional for local
 providers like Ollama.
 
-The entire package lives in `flywrite-mode.el`. Unit tests are in
+The entire package lives in `flywrite.el`. Unit tests are in
 `test-flywrite.el`. Prompt regression tests are in
 `test-flywrite-prompt.el`. Sample files in `samples/` are for manual
 end-to-end testing.
@@ -80,13 +80,13 @@ Byte-compile standalone:
 ```bash
 emacs -Q --batch \
   --eval "(setq byte-compile-error-on-warn t)" \
-  -f batch-byte-compile flywrite-mode.el \
-  && rm -f flywrite-mode.elc
+  -f batch-byte-compile flywrite.el \
+  && rm -f flywrite.elc
 ```
 
 Run a single ERT test by name:
 ```bash
-emacs -Q --batch -l flywrite-mode.el -l test-flywrite.el \
+emacs -Q --batch -l flywrite.el -l test-flywrite.el \
   --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
 ```
 
@@ -107,7 +107,7 @@ Design
 ## Documentation
 
 - Default values shown in the README (including the system prompt)
-  must match the source code in `flywrite-mode.el`. When changing
+  must match the source code in `flywrite.el`. When changing
   defaults, update both.
 - When adding, removing, or renaming files in `samples/`, update the
   table in `samples/README.md` to match.
@@ -163,7 +163,7 @@ AI-assisted contributions are welcome. Contributors should review and understand
 
 ## Release procedure
 
-1. Update the `Version` header in `flywrite-mode.el`
+1. Update the `Version` header in `flywrite.el`
    (`;; Version: X.Y.Z`)
 2. Commit and push to `main`
 3. Tag the release: `git tag vX.Y.Z && git push --tags`

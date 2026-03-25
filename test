@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run flywrite-mode ERT tests in batch mode.
+# Run flywrite ERT tests in batch mode.
 
 # Stop on errors
 set -Eeuo pipefail
@@ -8,7 +8,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")"
 
 # Emacs Lisp source files
-EL_FILE_PACKAGE=flywrite-mode.el
+EL_FILE_PACKAGE=flywrite.el
 EL_FILES_TESTS=(
   lint-nesting.el
   test-flywrite.el
@@ -103,7 +103,7 @@ emacs \
 echo "Unit tests"
 emacs \
   -Q --batch \
-  -l flywrite-mode.el \
+  -l flywrite.el \
   -l test-flywrite.el \
   -f ert-run-tests-batch-and-exit \
   2>&1 | { grep -v '^flywrite:' >&2 || true; }
@@ -112,7 +112,7 @@ emacs \
 echo "Prompt regression tests"
 emacs \
   -Q --batch \
-  -l flywrite-mode.el \
+  -l flywrite.el \
   -l test-flywrite-prompt.el \
   -f ert-run-tests-batch-and-exit
 
@@ -122,7 +122,7 @@ diff <( \
   sed -n '/^(defconst flywrite--academic-prompt$/,/^  -- prefer/{
     /^(defconst/d
     p
-  }' flywrite-mode.el \
+  }' flywrite.el \
   | sed '1s/^  "//; $s/")$//' \
 ) <( \
   sed -n '/^(setq flywrite-system-prompt$/,/^```$/{

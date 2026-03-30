@@ -285,6 +285,7 @@ without needing to edit."
 ;; below) so the byte compiler doesn't warn about a free variable.
 (defvar flywrite-mode)
 
+
 ;;;; ---- Buffer-local state ----
 
 
@@ -386,8 +387,8 @@ FORMAT-STRING and ARGS are passed to `format'."
               (apply #'format format-string args)
               "\n"))))
 
-;;;; ---- Paragraph boundary helpers ----
 
+;;;; ---- Paragraph collection ----
 
 (defun flywrite--paragraph-bounds-at-pos (pos)
   "Return (beg . end) of the paragraph containing POS."
@@ -402,6 +403,40 @@ FORMAT-STRING and ARGS are passed to `format'."
       (setq end (point))
       (when (< end beg) (setq end beg))
       (cons beg end))))
+
+
+(defun flywrite--try-collect-paragraph (ubeg uend seen)
+  "Return a (ubeg uend hash) triple if paragraph UBEG..UEND should be collected.
+SEEN is a hash table of already-visited paragraph starts.  Returns nil
+if the paragraph is empty, duplicate, already checked, or in a skip region."
+  (when (and (> uend ubeg)
+             (not (gethash ubeg seen)))
+    (puthash ubeg t seen)
+    (let ((hash (flywrite--content-hash ubeg uend)))
+      (unless (or (gethash hash flywrite--checked-paragraphs)
+                  (flywrite--should-skip-p ubeg))
+        (list ubeg uend hash)))))
+
+
+(defun flywrite--collect-paragraphs-in-region (beg end)
+  "Collect all paragraphs in region BEG to END.
+Returns a list of (beg end hash) triples."
+  (let ((paragraphs nil)
+        (seen (make-hash-table :test 'eql)))
+    (save-excursion
+      (goto-char beg)
+      (while (< (point) end)
+        (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
+               (ubeg (car bounds))
+               (uend (cdr bounds))
+               (entry (when (<= uend end)
+                        (flywrite--try-collect-paragraph ubeg uend seen))))
+          (when entry (push entry paragraphs))
+
+          ;; Move past current paragraph and inter-paragraph whitespace
+          (goto-char (max (1+ (point)) uend))
+          (skip-chars-forward " \t\n"))))
+    (nreverse paragraphs)))
 
 
 ;;;; ---- Hashing ----
@@ -743,8 +778,7 @@ HASH is the content hash at time of dispatch for stale checking."
       "flywrite: request error, check *flywrite-log* for details"))))
 
 
-;;;; ---- Response handler helpers ----
-
+;;;; ---- Response handler ----
 
 (defun flywrite--response-body-snippet ()
   "Return the first 500 characters of the HTTP response body.
@@ -929,9 +963,6 @@ the region content.  HASH is for logging."
       (flymake-start))))
 
 
-;;;; ---- Response handler ----
-
-
 (defun flywrite--process-response (status buf beg end hash latency)
   "Process a non-duplicate API response in the response buffer.
 STATUS is from `url-retrieve'.  BUF, BEG, END, HASH identify the
@@ -1068,6 +1099,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
           (flywrite--eager-scan))
         (flywrite--dispatch-dirty-registry buf)))))
 
+
 ;;;; ---- Pending queue drain ----
 
 
@@ -1100,40 +1132,6 @@ Reports any existing diagnostics immediately so flymake can display them."
 
 
 ;;;; ---- Interactive commands ----
-
-
-(defun flywrite--try-collect-paragraph (ubeg uend seen)
-  "Return a (ubeg uend hash) triple if paragraph UBEG..UEND should be collected.
-SEEN is a hash table of already-visited paragraph starts.  Returns nil
-if the paragraph is empty, duplicate, already checked, or in a skip region."
-  (when (and (> uend ubeg)
-             (not (gethash ubeg seen)))
-    (puthash ubeg t seen)
-    (let ((hash (flywrite--content-hash ubeg uend)))
-      (unless (or (gethash hash flywrite--checked-paragraphs)
-                  (flywrite--should-skip-p ubeg))
-        (list ubeg uend hash)))))
-
-
-(defun flywrite--collect-paragraphs-in-region (beg end)
-  "Collect all paragraphs in region BEG to END.
-Returns a list of (beg end hash) triples."
-  (let ((paragraphs nil)
-        (seen (make-hash-table :test 'eql)))
-    (save-excursion
-      (goto-char beg)
-      (while (< (point) end)
-        (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
-               (ubeg (car bounds))
-               (uend (cdr bounds))
-               (entry (when (<= uend end)
-                        (flywrite--try-collect-paragraph ubeg uend seen))))
-          (when entry (push entry paragraphs))
-
-          ;; Move past current paragraph and inter-paragraph whitespace
-          (goto-char (max (1+ (point)) uend))
-          (skip-chars-forward " \t\n"))))
-    (nreverse paragraphs)))
 
 
 (defun flywrite-check-buffer ()

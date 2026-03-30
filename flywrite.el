@@ -383,7 +383,7 @@ FORMAT-STRING and ARGS are passed to `format'."
   (when flywrite-debug
     (with-current-buffer (get-buffer-create "*flywrite-log*")
       (goto-char (point-max))
-      (insert (format-time-string "[%H:%M:%S] ")
+      (insert (format-time-string "[%T] ") ; H:M:S
               (apply #'format format-string args)
               "\n"))))
 

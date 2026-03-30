@@ -4,7 +4,7 @@
 
 ;; Regression tests that send text samples to a real LLM API and verify
 ;; each system prompt catches (or does not flag) specific writing flaws.
-;; Every prompt style in `flywrite--prompt-alist' is tested.
+;; Every prompt style in `flywrite-prompt-alist' is tested.
 ;;
 ;; Requires FLYWRITE_API_KEY_ANTHROPIC env var.
 ;; Results are cached in test-flywrite-prompt-cache.json to avoid
@@ -146,7 +146,7 @@
   "Test inputs: each entry is a plist with :text, :description, :expected.
 :expected is an alist mapping each prompt style symbol to its
 expected suggestion count, e.g., ((prose . 0) (academic . 2)).
-Every style in `flywrite--prompt-alist' must have an entry.")
+Every style in `flywrite-prompt-alist' must have an entry.")
 
 ;;;; ---- Cache ----
 
@@ -355,7 +355,7 @@ Uses Anthropic as the default provider."
 Each job is a plist with :style, :input, :text, :model, :prompt-hash,
 :temperature, :prompt-text, :expected, and :cached (the cache entry or nil)."
   (flywrite-prompt-test--configure)
-  (cl-loop for style-entry in flywrite--prompt-alist
+  (cl-loop for style-entry in flywrite-prompt-alist
            for style = (car style-entry)
            nconc
            (mapcar
@@ -455,12 +455,12 @@ Returns (style input expected count suggestions pass)."
 (defun flywrite-prompt-test--prune-cache ()
   "Remove cache entries whose prompt hash is not current.
 Also remove orphaned prompts.  Current hashes are computed from
-each style in `flywrite--prompt-alist'."
+each style in `flywrite-prompt-alist'."
   (let ((current-hashes (mapcar (lambda (style-entry)
                                   (let ((flywrite-system-prompt
                                          (car style-entry)))
                                     (md5 (flywrite--get-system-prompt))))
-                                flywrite--prompt-alist)))
+                                flywrite-prompt-alist)))
     (setq flywrite-prompt-test--cache
           (cl-remove-if-not
            (lambda (entry)

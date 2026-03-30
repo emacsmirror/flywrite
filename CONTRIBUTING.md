@@ -52,7 +52,7 @@ The `./test` script runs these checks:
 ### Prompt regression tests
 
 `test-flywrite-prompt.el` sends text samples to a real LLM API and
-verifies that every prompt style in `flywrite--prompt-alist` catches
+verifies that every prompt style in `flywrite-prompt-alist` catches
 (or does not flag) specific writing flaws.
 
 **API key setup.** Prompt regression tests require the

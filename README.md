@@ -115,6 +115,31 @@ Rules:
   -- prefer 'Therefore', 'Additionally', 'Moreover'")
 ```
 
+**Custom named style:** Register your own named style by adding an entry to `flywrite-prompt-alist`, then select it like a built-in style. Keep the JSON format section unchanged, flywrite needs it to parse responses.
+
+```elisp
+(add-to-list 'flywrite-prompt-alist
+             '(scifi . "You are a sci-fi writing assistant.
+Analyze the text for grammar, clarity, and style.
+Return JSON only. No text outside the JSON.
+
+If the text is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\",
+  \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct text
+- Flag inconsistent use of sci-fi terminology
+- Flag technobabble that obscures meaning"))
+(setq flywrite-system-prompt 'scifi)
+```
+
 **Per-file prompt:** Add a file-local variable at the top of a file to override the prompt style for that file only. Emacs will apply it automatically when the file is opened.
 
 | File type | First-line variable |

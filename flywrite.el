@@ -320,10 +320,13 @@ Rules:
   -- prefer 'Therefore', 'Additionally', 'Moreover'")
 
 
-(defconst flywrite--prompt-alist
+(defvar flywrite-prompt-alist
   `((prose . ,flywrite--prose-prompt)
     (academic . ,flywrite--academic-prompt))
-  "Alist mapping prompt style symbols to prompt strings.")
+  "Alist mapping prompt style symbols to prompt strings.
+Users can add entries to register custom named styles:
+  (add-to-list \\='flywrite-prompt-alist \\='(scifi . \"You are ...\"))
+  (setq flywrite-system-prompt \\='scifi)")
 
 
 (defcustom flywrite-system-prompt 'academic
@@ -343,17 +346,17 @@ while preserving the JSON output format."
 
 ;;;###autoload
 (put 'flywrite-system-prompt 'safe-local-variable
-     (lambda (v) (memq v '(prose academic))))
+     (lambda (v) (assq v flywrite-prompt-alist)))
 
 
 (defun flywrite--get-system-prompt ()
   "Return the system prompt string.
 If `flywrite-system-prompt' is a string, return it as-is.
-If it is a symbol, look it up in `flywrite--prompt-alist'."
+If it is a symbol, look it up in `flywrite-prompt-alist'."
   (cond
    ((stringp flywrite-system-prompt) flywrite-system-prompt)
    ((symbolp flywrite-system-prompt)
-    (let ((entry (assq flywrite-system-prompt flywrite--prompt-alist)))
+    (let ((entry (assq flywrite-system-prompt flywrite-prompt-alist)))
       (unless entry
         (error "Unknown flywrite-system-prompt style: %s"
                flywrite-system-prompt))
@@ -1243,13 +1246,13 @@ Prompts for confirmation when the count exceeds
 
 (defun flywrite-set-prompt (style)
   "Set the system prompt for the current buffer.
-STYLE is a symbol from `flywrite--prompt-alist' (e.g., `prose'
+STYLE is a symbol from `flywrite-prompt-alist' (e.g., `prose'
 or `academic'), chosen interactively with completion.  When the
 current prompt is a custom string, \"custom\" appears as an option
 that preserves it."
   (interactive
    (let* ((styles (mapcar (lambda (c) (symbol-name (car c)))
-                          flywrite--prompt-alist))
+                          flywrite-prompt-alist))
           (custom-p (stringp flywrite-system-prompt))
           (current (if custom-p "custom"
                      (symbol-name flywrite-system-prompt)))

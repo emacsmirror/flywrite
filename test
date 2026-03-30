@@ -119,11 +119,11 @@ emacs \
 # Check: README system prompt matches source
 echo "Check: README system prompt matches source"
 diff <( \
-  sed -n '/^(defconst flywrite--academic-prompt$/,/^  -- prefer/{
-    /^(defconst/d
+  sed -n '/^(defvar flywrite-academic-prompt$/,/^  -- prefer/{
+    /^(defvar/d
     p
   }' flywrite.el \
-  | sed '1s/^  "//; $s/")$//' \
+  | sed '1s/^  "//; $s/"$//' \
 ) <( \
   sed -n '/^(setq flywrite-system-prompt$/,/^```$/{
     /^(setq/d

@@ -66,13 +66,120 @@ Customize this to change the color or style of flywrite suggestions."
 (put 'flywrite-diagnostic-type 'mode-line-face 'flywrite-diagnostic-echo)
 
 
-;;;; ---- Customization group & variables ----
+;;;; ---- Customization group, prompts & variables ----
 
 
 (defgroup flywrite nil
   "Inline writing suggestions via LLM."
   :group 'tools
   :prefix "flywrite-")
+
+
+;;;; ---- System prompts ----
+
+
+;; System prompt for general prose writing feedback.
+(defvar flywrite-prose-prompt
+  "You are a writing assistant. Analyze the text for grammar,
+clarity, and style.  Return JSON only. No text outside the JSON.
+
+If the text is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\",
+  \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct text
+- Focus on objective errors: misspellings, wrong words
+  (e.g., affect/effect, there/their), subject-verb disagreement,
+  pronoun case, missing or wrong punctuation, and redundant words.
+- Do not flag style preferences or debatable grammar rules
+  (e.g., comma before 'which', comma after introductory phrase,
+  'like' vs 'such as', split infinitives, ending sentences
+  with prepositions).  When a comma is optional, do not flag it.
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
+- Err on the side of not flagging.  Only flag clear, unambiguous errors.
+- Ignore markup like LaTeX, HTML, or Org-mode."
+  "System prompt for general prose writing feedback.")
+
+
+;; System prompt for academic writing feedback.
+(defvar flywrite-academic-prompt
+  "You are a writing assistant. Analyze the text for grammar,
+clarity, and style.  Return JSON only. No text outside the JSON.
+
+If the text is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\",
+  \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct text
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
+- Err on the side of not flagging.  Only flag clear, unambiguous errors.
+- Ignore markup like LaTeX, HTML, or Org-mode.
+- Flag informal language, contractions, and colloquialisms
+- Flag vague hedging
+  (e.g., 'a lot', 'thing(s)', 'stuff', 'really')
+- Flag unsupported opinions
+  (e.g., 'I think X is better') -- state evidence instead
+- Flag unsupported superlatives
+  (e.g., 'the best', 'the most important')
+- Flag wordiness and nominalizations
+  (e.g., 'make an adjustment' -> 'adjust')
+- Flag subjective qualifiers
+  (e.g., 'obviously', 'clearly', 'of course')
+- Flag ambiguous 'this/it/they' pronouns without antecedents
+  (e.g., 'This is important' -- this what?)
+- Flag weasel words (e.g., 'significantly' without statistical
+  context, 'often', 'usually' without citation)
+- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
+  -- prefer 'Therefore', 'Additionally', 'Moreover'"
+  "System prompt for academic writing feedback.")
+
+
+(defvar flywrite-prompt-alist
+  `((prose . ,flywrite-prose-prompt)
+    (academic . ,flywrite-academic-prompt))
+  "Alist mapping prompt style symbols to prompt strings.
+Users can add entries to register custom named styles:
+  (add-to-list \\='flywrite-prompt-alist \\='(scifi . \"You are ...\"))
+  (setq flywrite-system-prompt \\='scifi)")
+
+
+(defcustom flywrite-system-prompt 'academic
+  "System prompt sent with every API call.
+Can be a symbol selecting a built-in prompt style or a custom
+string.  Built-in styles: `prose' (general writing feedback)
+and `academic' (adds rules for formal academic writing).
+
+The prompt must instruct the model to return JSON with a
+\"suggestions\" array.  Each element needs \"quote\" and \"reason\"
+keys.  Customize this to change tone, strictness, or focus areas
+while preserving the JSON output format."
+  :type '(choice (const :tag "Prose" prose)
+                 (const :tag "Academic" academic)
+                 (string :tag "Custom prompt"))
+  :group 'flywrite)
+
+;;;###autoload
+(put 'flywrite-system-prompt 'safe-local-variable
+     (lambda (v) (assq v flywrite-prompt-alist)))
+
+
+;;;; ---- Customization variables ----
 
 
 (defcustom flywrite-api-key nil
@@ -248,105 +355,6 @@ configure it.  See the README for details."
 
 (defconst flywrite--default-model-gemini "gemini-2.5-flash"
   "Default model for Google Gemini API.")
-
-
-;; System prompt for general prose writing feedback.
-(defconst flywrite--prose-prompt
-  "You are a writing assistant. Analyze the text for grammar,
-clarity, and style.  Return JSON only. No text outside the JSON.
-
-If the text is fine:
-{\"suggestions\": []}
-
-If there are issues:
-{\"suggestions\": [{\"quote\": \"exact substring\",
-  \"reason\": \"brief explanation\"}]}
-
-Rules:
-- \"quote\" must be an exact substring of the input
-- Keep reasons under 12 words
-- One entry per distinct issue
-- Do not flag correct text
-- Focus on objective errors: misspellings, wrong words
-  (e.g., affect/effect, there/their), subject-verb disagreement,
-  pronoun case, missing or wrong punctuation, and redundant words.
-- Do not flag style preferences or debatable grammar rules
-  (e.g., comma before 'which', comma after introductory phrase,
-  'like' vs 'such as', split infinitives, ending sentences
-  with prepositions).  When a comma is optional, do not flag it.
-- Do not flag spacing between sentences (one or two spaces are
-  both acceptable).
-- Err on the side of not flagging.  Only flag clear, unambiguous errors.
-- Ignore markup like LaTeX, HTML, or Org-mode.")
-
-
-;; System prompt for academic writing feedback.
-(defconst flywrite--academic-prompt
-  "You are a writing assistant. Analyze the text for grammar,
-clarity, and style.  Return JSON only. No text outside the JSON.
-
-If the text is fine:
-{\"suggestions\": []}
-
-If there are issues:
-{\"suggestions\": [{\"quote\": \"exact substring\",
-  \"reason\": \"brief explanation\"}]}
-
-Rules:
-- \"quote\" must be an exact substring of the input
-- Keep reasons under 12 words
-- One entry per distinct issue
-- Do not flag correct text
-- Do not flag spacing between sentences (one or two spaces are
-  both acceptable).
-- Err on the side of not flagging.  Only flag clear, unambiguous errors.
-- Ignore markup like LaTeX, HTML, or Org-mode.
-- Flag informal language, contractions, and colloquialisms
-- Flag vague hedging
-  (e.g., 'a lot', 'thing(s)', 'stuff', 'really')
-- Flag unsupported opinions
-  (e.g., 'I think X is better') -- state evidence instead
-- Flag unsupported superlatives
-  (e.g., 'the best', 'the most important')
-- Flag wordiness and nominalizations
-  (e.g., 'make an adjustment' -> 'adjust')
-- Flag subjective qualifiers
-  (e.g., 'obviously', 'clearly', 'of course')
-- Flag ambiguous 'this/it/they' pronouns without antecedents
-  (e.g., 'This is important' -- this what?)
-- Flag weasel words (e.g., 'significantly' without statistical
-  context, 'often', 'usually' without citation)
-- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
-  -- prefer 'Therefore', 'Additionally', 'Moreover'")
-
-
-(defvar flywrite-prompt-alist
-  `((prose . ,flywrite--prose-prompt)
-    (academic . ,flywrite--academic-prompt))
-  "Alist mapping prompt style symbols to prompt strings.
-Users can add entries to register custom named styles:
-  (add-to-list \\='flywrite-prompt-alist \\='(scifi . \"You are ...\"))
-  (setq flywrite-system-prompt \\='scifi)")
-
-
-(defcustom flywrite-system-prompt 'academic
-  "System prompt sent with every API call.
-Can be a symbol selecting a built-in prompt style or a custom
-string.  Built-in styles: `prose' (general writing feedback)
-and `academic' (adds rules for formal academic writing).
-
-The prompt must instruct the model to return JSON with a
-\"suggestions\" array.  Each element needs \"quote\" and \"reason\"
-keys.  Customize this to change tone, strictness, or focus areas
-while preserving the JSON output format."
-  :type '(choice (const :tag "Prose" prose)
-                 (const :tag "Academic" academic)
-                 (string :tag "Custom prompt"))
-  :group 'flywrite)
-
-;;;###autoload
-(put 'flywrite-system-prompt 'safe-local-variable
-     (lambda (v) (assq v flywrite-prompt-alist)))
 
 
 (defun flywrite--get-system-prompt ()

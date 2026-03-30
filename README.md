@@ -64,8 +64,8 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 ### System prompt
 `flywrite-system-prompt` controls the instructions sent with every API call. Select a built-in style or provide a custom string.
 
-- `'prose`: grammar, clarity, and style feedback
-- `'academic` (default): adds rules for formal academic writing: contractions, hedging, weasel words, etc.
+- `flywrite-prose-prompt`: grammar, clarity, and style feedback
+- `flywrite-academic-prompt`: adds rules for formal academic writing: contractions, hedging, weasel words, etc. (default)
 
 **Per-user prompt:** Set the prompt style in your Emacs config. This applies to all files unless overridden by a per-file or per-directory setting.
 

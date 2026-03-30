@@ -1032,7 +1032,7 @@
 (ert-deftest flywrite-test-prompt-prose-symbol ()
   "Symbol `prose' resolves to the prose prompt string."
   (let ((flywrite-system-prompt 'prose))
-    (should (string= (flywrite--get-system-prompt) flywrite--prose-prompt))))
+    (should (string= (flywrite--get-system-prompt) flywrite-prose-prompt))))
 
 
 (ert-deftest flywrite-test-prompt-academic-symbol ()
@@ -1130,7 +1130,7 @@
       (with-current-buffer (get-buffer-create "*flywrite-log*")
         (should (string-match-p "System prompt changed to prose"
                                 (buffer-string)))
-        (should (string-match-p (regexp-quote flywrite--prose-prompt)
+        (should (string-match-p (regexp-quote flywrite-prose-prompt)
                                 (buffer-string)))
         ;; The "System prompt:" log entry should NOT contain the
         ;; academic prompt (which would indicate a stale read).

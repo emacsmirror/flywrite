@@ -92,5 +92,6 @@ Key design decisions:
 - Diagnostics are tagged with `[flywrite]` suffix in messages
 - 80-character line width
 - Logical nesting depth: prefer 4 levels, hard limit of 5 (enforced by `lint-nesting.el`; counted forms include `if`, `when`, `let`, `save-excursion`, `condition-case`, etc.)
+- Section headers (`;;;; ---- Name ----`) should match their contents: interactive commands sections should only contain `(interactive)` functions; private helpers belong in their own section, etc.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributing guide.

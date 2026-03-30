@@ -66,13 +66,120 @@ Customize this to change the color or style of flywrite suggestions."
 (put 'flywrite-diagnostic-type 'mode-line-face 'flywrite-diagnostic-echo)
 
 
-;;;; ---- Customization group & variables ----
+;;;; ---- Customization group, prompts & variables ----
 
 
 (defgroup flywrite nil
   "Inline writing suggestions via LLM."
   :group 'tools
   :prefix "flywrite-")
+
+
+;;;; ---- System prompts ----
+
+
+;; System prompt for general prose writing feedback.
+(defvar flywrite-prose-prompt
+  "You are a writing assistant. Analyze the text for grammar,
+clarity, and style.  Return JSON only. No text outside the JSON.
+
+If the text is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\",
+  \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct text
+- Focus on objective errors: misspellings, wrong words
+  (e.g., affect/effect, there/their), subject-verb disagreement,
+  pronoun case, missing or wrong punctuation, and redundant words.
+- Do not flag style preferences or debatable grammar rules
+  (e.g., comma before 'which', comma after introductory phrase,
+  'like' vs 'such as', split infinitives, ending sentences
+  with prepositions).  When a comma is optional, do not flag it.
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
+- Err on the side of not flagging.  Only flag clear, unambiguous errors.
+- Ignore markup like LaTeX, HTML, or Org-mode."
+  "System prompt for general prose writing feedback.")
+
+
+;; System prompt for academic writing feedback.
+(defvar flywrite-academic-prompt
+  "You are a writing assistant. Analyze the text for grammar,
+clarity, and style.  Return JSON only. No text outside the JSON.
+
+If the text is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\",
+  \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct text
+- Do not flag spacing between sentences (one or two spaces are
+  both acceptable).
+- Err on the side of not flagging.  Only flag clear, unambiguous errors.
+- Ignore markup like LaTeX, HTML, or Org-mode.
+- Flag informal language, contractions, and colloquialisms
+- Flag vague hedging
+  (e.g., 'a lot', 'thing(s)', 'stuff', 'really')
+- Flag unsupported opinions
+  (e.g., 'I think X is better') -- state evidence instead
+- Flag unsupported superlatives
+  (e.g., 'the best', 'the most important')
+- Flag wordiness and nominalizations
+  (e.g., 'make an adjustment' -> 'adjust')
+- Flag subjective qualifiers
+  (e.g., 'obviously', 'clearly', 'of course')
+- Flag ambiguous 'this/it/they' pronouns without antecedents
+  (e.g., 'This is important' -- this what?)
+- Flag weasel words (e.g., 'significantly' without statistical
+  context, 'often', 'usually' without citation)
+- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
+  -- prefer 'Therefore', 'Additionally', 'Moreover'"
+  "System prompt for academic writing feedback.")
+
+
+(defvar flywrite-prompt-alist
+  `((prose . ,flywrite-prose-prompt)
+    (academic . ,flywrite-academic-prompt))
+  "Alist mapping prompt style symbols to prompt strings.
+Users can add entries to register custom named styles:
+  (add-to-list \\='flywrite-prompt-alist \\='(scifi . \"You are ...\"))
+  (setq flywrite-system-prompt \\='scifi)")
+
+
+(defcustom flywrite-system-prompt 'academic
+  "System prompt sent with every API call.
+Can be a symbol selecting a built-in prompt style or a custom
+string.  Built-in styles: `prose' (general writing feedback)
+and `academic' (adds rules for formal academic writing).
+
+The prompt must instruct the model to return JSON with a
+\"suggestions\" array.  Each element needs \"quote\" and \"reason\"
+keys.  Customize this to change tone, strictness, or focus areas
+while preserving the JSON output format."
+  :type '(choice (const :tag "Prose" prose)
+                 (const :tag "Academic" academic)
+                 (string :tag "Custom prompt"))
+  :group 'flywrite)
+
+;;;###autoload
+(put 'flywrite-system-prompt 'safe-local-variable
+     (lambda (v) (assq v flywrite-prompt-alist)))
+
+
+;;;; ---- Customization variables ----
 
 
 (defcustom flywrite-api-key nil
@@ -178,6 +285,7 @@ without needing to edit."
 ;; below) so the byte compiler doesn't warn about a free variable.
 (defvar flywrite-mode)
 
+
 ;;;; ---- Buffer-local state ----
 
 
@@ -250,110 +358,14 @@ configure it.  See the README for details."
   "Default model for Google Gemini API.")
 
 
-;; System prompt for general prose writing feedback.
-(defconst flywrite--prose-prompt
-  "You are a writing assistant. Analyze the text for grammar,
-clarity, and style.  Return JSON only. No text outside the JSON.
-
-If the text is fine:
-{\"suggestions\": []}
-
-If there are issues:
-{\"suggestions\": [{\"quote\": \"exact substring\",
-  \"reason\": \"brief explanation\"}]}
-
-Rules:
-- \"quote\" must be an exact substring of the input
-- Keep reasons under 12 words
-- One entry per distinct issue
-- Do not flag correct text
-- Focus on objective errors: misspellings, wrong words
-  (e.g., affect/effect, there/their), subject-verb disagreement,
-  pronoun case, missing or wrong punctuation, and redundant words.
-- Do not flag style preferences or debatable grammar rules
-  (e.g., comma before 'which', comma after introductory phrase,
-  'like' vs 'such as', split infinitives, ending sentences
-  with prepositions).  When a comma is optional, do not flag it.
-- Do not flag spacing between sentences (one or two spaces are
-  both acceptable).
-- Err on the side of not flagging.  Only flag clear, unambiguous errors.
-- Ignore markup like LaTeX, HTML, or Org-mode.")
-
-
-;; System prompt for academic writing feedback.
-(defconst flywrite--academic-prompt
-  "You are a writing assistant. Analyze the text for grammar,
-clarity, and style.  Return JSON only. No text outside the JSON.
-
-If the text is fine:
-{\"suggestions\": []}
-
-If there are issues:
-{\"suggestions\": [{\"quote\": \"exact substring\",
-  \"reason\": \"brief explanation\"}]}
-
-Rules:
-- \"quote\" must be an exact substring of the input
-- Keep reasons under 12 words
-- One entry per distinct issue
-- Do not flag correct text
-- Do not flag spacing between sentences (one or two spaces are
-  both acceptable).
-- Err on the side of not flagging.  Only flag clear, unambiguous errors.
-- Ignore markup like LaTeX, HTML, or Org-mode.
-- Flag informal language, contractions, and colloquialisms
-- Flag vague hedging
-  (e.g., 'a lot', 'thing(s)', 'stuff', 'really')
-- Flag unsupported opinions
-  (e.g., 'I think X is better') -- state evidence instead
-- Flag unsupported superlatives
-  (e.g., 'the best', 'the most important')
-- Flag wordiness and nominalizations
-  (e.g., 'make an adjustment' -> 'adjust')
-- Flag subjective qualifiers
-  (e.g., 'obviously', 'clearly', 'of course')
-- Flag ambiguous 'this/it/they' pronouns without antecedents
-  (e.g., 'This is important' -- this what?)
-- Flag weasel words (e.g., 'significantly' without statistical
-  context, 'often', 'usually' without citation)
-- Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
-  -- prefer 'Therefore', 'Additionally', 'Moreover'")
-
-
-(defconst flywrite--prompt-alist
-  `((prose . ,flywrite--prose-prompt)
-    (academic . ,flywrite--academic-prompt))
-  "Alist mapping prompt style symbols to prompt strings.")
-
-
-(defcustom flywrite-system-prompt 'academic
-  "System prompt sent with every API call.
-Can be a symbol selecting a built-in prompt style or a custom
-string.  Built-in styles: `prose' (general writing feedback)
-and `academic' (adds rules for formal academic writing).
-
-The prompt must instruct the model to return JSON with a
-\"suggestions\" array.  Each element needs \"quote\" and \"reason\"
-keys.  Customize this to change tone, strictness, or focus areas
-while preserving the JSON output format."
-  :type '(choice (const :tag "Prose" prose)
-                 (const :tag "Academic" academic)
-                 (string :tag "Custom prompt"))
-  :group 'flywrite)
-
-;;;###autoload
-(put 'flywrite-system-prompt 'safe-local-variable
-     (lambda (v) (memq v '(prose academic))))
-
-
 (defun flywrite--get-system-prompt ()
   "Return the system prompt string.
 If `flywrite-system-prompt' is a string, return it as-is.
-If it is a symbol, look it up in `flywrite--prompt-alist'."
+If it is a symbol, look it up in `flywrite-prompt-alist'."
   (cond
    ((stringp flywrite-system-prompt) flywrite-system-prompt)
    ((symbolp flywrite-system-prompt)
-    (let ((entry (assq flywrite-system-prompt flywrite--prompt-alist)))
+    (let ((entry (assq flywrite-system-prompt flywrite-prompt-alist)))
       (unless entry
         (error "Unknown flywrite-system-prompt style: %s"
                flywrite-system-prompt))
@@ -371,12 +383,12 @@ FORMAT-STRING and ARGS are passed to `format'."
   (when flywrite-debug
     (with-current-buffer (get-buffer-create "*flywrite-log*")
       (goto-char (point-max))
-      (insert (format-time-string "[%H:%M:%S] ")
+      (insert (format-time-string "[%T] ") ; H:M:S
               (apply #'format format-string args)
               "\n"))))
 
-;;;; ---- Paragraph boundary helpers ----
 
+;;;; ---- Paragraph collection ----
 
 (defun flywrite--paragraph-bounds-at-pos (pos)
   "Return (beg . end) of the paragraph containing POS."
@@ -391,6 +403,40 @@ FORMAT-STRING and ARGS are passed to `format'."
       (setq end (point))
       (when (< end beg) (setq end beg))
       (cons beg end))))
+
+
+(defun flywrite--try-collect-paragraph (ubeg uend seen)
+  "Return a (ubeg uend hash) triple if paragraph UBEG..UEND should be collected.
+SEEN is a hash table of already-visited paragraph starts.  Returns nil
+if the paragraph is empty, duplicate, already checked, or in a skip region."
+  (when (and (> uend ubeg)
+             (not (gethash ubeg seen)))
+    (puthash ubeg t seen)
+    (let ((hash (flywrite--content-hash ubeg uend)))
+      (unless (or (gethash hash flywrite--checked-paragraphs)
+                  (flywrite--should-skip-p ubeg))
+        (list ubeg uend hash)))))
+
+
+(defun flywrite--collect-paragraphs-in-region (beg end)
+  "Collect all paragraphs in region BEG to END.
+Returns a list of (beg end hash) triples."
+  (let ((paragraphs nil)
+        (seen (make-hash-table :test 'eql)))
+    (save-excursion
+      (goto-char beg)
+      (while (< (point) end)
+        (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
+               (ubeg (car bounds))
+               (uend (cdr bounds))
+               (entry (when (<= uend end)
+                        (flywrite--try-collect-paragraph ubeg uend seen))))
+          (when entry (push entry paragraphs))
+
+          ;; Move past current paragraph and inter-paragraph whitespace
+          (goto-char (max (1+ (point)) uend))
+          (skip-chars-forward " \t\n"))))
+    (nreverse paragraphs)))
 
 
 ;;;; ---- Hashing ----
@@ -732,8 +778,7 @@ HASH is the content hash at time of dispatch for stale checking."
       "flywrite: request error, check *flywrite-log* for details"))))
 
 
-;;;; ---- Response handler helpers ----
-
+;;;; ---- Response handler ----
 
 (defun flywrite--response-body-snippet ()
   "Return the first 500 characters of the HTTP response body.
@@ -918,9 +963,6 @@ the region content.  HASH is for logging."
       (flymake-start))))
 
 
-;;;; ---- Response handler ----
-
-
 (defun flywrite--process-response (status buf beg end hash latency)
   "Process a non-duplicate API response in the response buffer.
 STATUS is from `url-retrieve'.  BUF, BEG, END, HASH identify the
@@ -1057,6 +1099,7 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
           (flywrite--eager-scan))
         (flywrite--dispatch-dirty-registry buf)))))
 
+
 ;;;; ---- Pending queue drain ----
 
 
@@ -1089,40 +1132,6 @@ Reports any existing diagnostics immediately so flymake can display them."
 
 
 ;;;; ---- Interactive commands ----
-
-
-(defun flywrite--try-collect-paragraph (ubeg uend seen)
-  "Return a (ubeg uend hash) triple if paragraph UBEG..UEND should be collected.
-SEEN is a hash table of already-visited paragraph starts.  Returns nil
-if the paragraph is empty, duplicate, already checked, or in a skip region."
-  (when (and (> uend ubeg)
-             (not (gethash ubeg seen)))
-    (puthash ubeg t seen)
-    (let ((hash (flywrite--content-hash ubeg uend)))
-      (unless (or (gethash hash flywrite--checked-paragraphs)
-                  (flywrite--should-skip-p ubeg))
-        (list ubeg uend hash)))))
-
-
-(defun flywrite--collect-paragraphs-in-region (beg end)
-  "Collect all paragraphs in region BEG to END.
-Returns a list of (beg end hash) triples."
-  (let ((paragraphs nil)
-        (seen (make-hash-table :test 'eql)))
-    (save-excursion
-      (goto-char beg)
-      (while (< (point) end)
-        (let* ((bounds (flywrite--paragraph-bounds-at-pos (point)))
-               (ubeg (car bounds))
-               (uend (cdr bounds))
-               (entry (when (<= uend end)
-                        (flywrite--try-collect-paragraph ubeg uend seen))))
-          (when entry (push entry paragraphs))
-
-          ;; Move past current paragraph and inter-paragraph whitespace
-          (goto-char (max (1+ (point)) uend))
-          (skip-chars-forward " \t\n"))))
-    (nreverse paragraphs)))
 
 
 (defun flywrite-check-buffer ()
@@ -1243,13 +1252,13 @@ Prompts for confirmation when the count exceeds
 
 (defun flywrite-set-prompt (style)
   "Set the system prompt for the current buffer.
-STYLE is a symbol from `flywrite--prompt-alist' (e.g., `prose'
+STYLE is a symbol from `flywrite-prompt-alist' (e.g., `prose'
 or `academic'), chosen interactively with completion.  When the
 current prompt is a custom string, \"custom\" appears as an option
 that preserves it."
   (interactive
    (let* ((styles (mapcar (lambda (c) (symbol-name (car c)))
-                          flywrite--prompt-alist))
+                          flywrite-prompt-alist))
           (custom-p (stringp flywrite-system-prompt))
           (current (if custom-p "custom"
                      (symbol-name flywrite-system-prompt)))

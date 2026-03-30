@@ -64,8 +64,8 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 ### System prompt
 `flywrite-system-prompt` controls the instructions sent with every API call. Select a built-in style or provide a custom string.
 
-- `'prose`: grammar, clarity, and style feedback
-- `'academic` (default): adds rules for formal academic writing: contractions, hedging, weasel words, etc.
+- `flywrite-prose-prompt`: grammar, clarity, and style feedback
+- `flywrite-academic-prompt`: adds rules for formal academic writing: contractions, hedging, weasel words, etc. (default)
 
 **Per-user prompt:** Set the prompt style in your Emacs config. This applies to all files unless overridden by a per-file or per-directory setting.
 
@@ -113,6 +113,31 @@ Rules:
   context, 'often', 'usually' without citation)
 - Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
   -- prefer 'Therefore', 'Additionally', 'Moreover'")
+```
+
+**Custom named style:** Register your own named style by adding an entry to `flywrite-prompt-alist`, then select it like a built-in style. Keep the JSON format section unchanged, flywrite needs it to parse responses.
+
+```elisp
+(add-to-list 'flywrite-prompt-alist
+             '(scifi . "You are a sci-fi writing assistant.
+Analyze the text for grammar, clarity, and style.
+Return JSON only. No text outside the JSON.
+
+If the text is fine:
+{\"suggestions\": []}
+
+If there are issues:
+{\"suggestions\": [{\"quote\": \"exact substring\",
+  \"reason\": \"brief explanation\"}]}
+
+Rules:
+- \"quote\" must be an exact substring of the input
+- Keep reasons under 12 words
+- One entry per distinct issue
+- Do not flag correct text
+- Flag inconsistent use of sci-fi terminology
+- Flag technobabble that obscures meaning"))
+(setq flywrite-system-prompt 'scifi)
 ```
 
 **Per-file prompt:** Add a file-local variable at the top of a file to override the prompt style for that file only. Emacs will apply it automatically when the file is opened.

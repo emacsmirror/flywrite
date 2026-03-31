@@ -117,6 +117,9 @@ emacs \
   -f ert-run-tests-batch-and-exit
 
 # Check: README system prompt matches source
+# The README custom-prompt example copies the academic prompt and adds extra
+# rules.  Extract the academic prompt from both files (up through the last
+# built-in rule) and verify they match.
 echo "Check: README system prompt matches source"
 diff <( \
   sed -n '/^(defvar flywrite-academic-prompt$/,/^  -- prefer/{
@@ -125,12 +128,11 @@ diff <( \
   }' flywrite.el \
   | sed '1s/^  "//; $s/"$//' \
 ) <( \
-  sed -n '/^(setq flywrite-system-prompt$/,/^```$/{
-    /^(setq/d
-    /^```$/d
+  sed -n '/^(setf (alist-get .academic/,/  -- prefer/{
+    /^(setf/d
     p
   }' README.md \
-  | sed '1s/^  "//; $s/")$//' \
+  | sed '1s/^  "//; $s/"$//' \
 )
 
 # Clean up

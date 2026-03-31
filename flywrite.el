@@ -161,17 +161,15 @@ Users can add entries to register custom named styles:
 
 (defcustom flywrite-system-prompt 'academic
   "System prompt sent with every API call.
-Can be a symbol selecting a built-in prompt style or a custom
-string.  Built-in styles: `prose' (general writing feedback)
-and `academic' (adds rules for formal academic writing).
+Value is a symbol naming an entry in `flywrite-prompt-alist'.
+Built-in styles: `prose' (general writing feedback) and
+`academic' (adds rules for formal academic writing).
 
-The prompt must instruct the model to return JSON with a
-\"suggestions\" array.  Each element needs \"quote\" and \"reason\"
-keys.  Customize this to change tone, strictness, or focus areas
-while preserving the JSON output format."
-  :type '(choice (const :tag "Prose" prose)
-                 (const :tag "Academic" academic)
-                 (string :tag "Custom prompt"))
+Register custom styles by adding entries to
+`flywrite-prompt-alist'.  The prompt must instruct the model to
+return JSON with a \"suggestions\" array.  Each element needs
+\"quote\" and \"reason\" keys."
+  :type 'symbol
   :group 'flywrite)
 
 ;;;###autoload
@@ -360,18 +358,12 @@ configure it.  See the README for details."
 
 (defun flywrite--get-system-prompt ()
   "Return the system prompt string.
-If `flywrite-system-prompt' is a string, return it as-is.
-If it is a symbol, look it up in `flywrite-prompt-alist'."
-  (cond
-   ((stringp flywrite-system-prompt) flywrite-system-prompt)
-   ((symbolp flywrite-system-prompt)
-    (let ((entry (assq flywrite-system-prompt flywrite-prompt-alist)))
-      (unless entry
-        (error "Unknown flywrite-system-prompt style: %s"
-               flywrite-system-prompt))
-      (cdr entry)))
-   (t (error "Bad flywrite-system-prompt type: %S"
-             flywrite-system-prompt))))
+Look up `flywrite-system-prompt' in `flywrite-prompt-alist'."
+  (let ((entry (assq flywrite-system-prompt flywrite-prompt-alist)))
+    (unless entry
+      (error "Unknown flywrite-system-prompt style: %s"
+             flywrite-system-prompt))
+    (cdr entry)))
 
 
 ;;;; ---- Logging ----
@@ -704,9 +696,7 @@ Signal an error if configuration is invalid, preventing mode activation."
 
         ;; System prompt resolves without error; log it
         (let ((prompt (flywrite--get-system-prompt)))
-          (flywrite--log "prompt=%s"
-                         (if (symbolp flywrite-system-prompt)
-                             flywrite-system-prompt "custom"))
+          (flywrite--log "prompt=%s" flywrite-system-prompt)
           (flywrite--log "System prompt:\n%s" prompt))
         (flywrite--log "Config valid"))
     (error
@@ -1253,28 +1243,17 @@ Prompts for confirmation when the count exceeds
 (defun flywrite-set-prompt (style)
   "Set the system prompt for the current buffer.
 STYLE is a symbol from `flywrite-prompt-alist' (e.g., `prose'
-or `academic'), chosen interactively with completion.  When the
-current prompt is a custom string, \"custom\" appears as an option
-that preserves it."
+or `academic'), chosen interactively with completion."
   (interactive
    (let* ((styles (mapcar (lambda (c) (symbol-name (car c)))
                           flywrite-prompt-alist))
-          (custom-p (stringp flywrite-system-prompt))
-          (current (if custom-p "custom"
-                     (symbol-name flywrite-system-prompt)))
-          (candidates (if custom-p
-                          (append styles '("custom"))
-                        styles))
+          (current (symbol-name flywrite-system-prompt))
           (choice (completing-read
-                   (format "Prompt style (current: %s): "
-                           current)
-                   candidates nil t nil nil current)))
-     (list (if (string= choice "custom")
-               flywrite-system-prompt
-             (intern choice)))))
+                   (format "Prompt style (current: %s): " current)
+                   styles nil t nil nil current)))
+     (list (intern choice))))
   (setq-local flywrite-system-prompt style)
-  (message "flywrite: prompt set to %s"
-           (if (stringp style) "custom" style)))
+  (message "flywrite: prompt set to %s" style))
 
 
 (defun flywrite--prompt-watcher (_symbol newval operation where)
@@ -1282,7 +1261,7 @@ that preserves it."
 OPERATION is the type of change; NEWVAL is the new value; WHERE
 is the buffer for buffer-local sets or nil for global sets."
   (when (eq operation 'set)
-    (let ((label (if (symbolp newval) (symbol-name newval) "custom"))
+    (let ((label (symbol-name newval))
           (bufs (if (and where (buffer-live-p where))
                     (list where)
                   (buffer-list)))

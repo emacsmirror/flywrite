@@ -38,10 +38,10 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 ## Configuration
 
 ### System prompt
-`flywrite-system-prompt` controls the instructions sent with every API call. Select a built-in style or provide a custom string.
+`flywrite-system-prompt` controls the instructions sent with every API call.
 
-- `flywrite-prose-prompt`: grammar, clarity, and style feedback
-- `flywrite-academic-prompt`: adds rules for formal academic writing: contractions, hedging, weasel words, etc. (default)
+- `prose`: grammar, clarity, and style feedback
+- `academic`: adds rules for formal academic writing: contractions, hedging, weasel words, etc. (default)
 
 **Per-user prompt:** Set the prompt style in your Emacs config. This applies to all files unless overridden by a per-file or per-directory setting.
 
@@ -49,10 +49,10 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 (setq flywrite-system-prompt 'academic)  ; or 'prose
 ```
 
-**Custom prompt:** Copy the academic prompt below and modify the rules at the end. Keep the JSON format section unchanged, flywrite needs it to parse responses.  Longer prompts cost more per call.  Anthropic's prompt caching helps, but other providers may not cache. Keep custom prompts concise.
+**Modify a built-in prompt:** Override an existing style with `setf`.  The example below copies the academic prompt and adds two rules at the end.  Keep the JSON format section unchanged, flywrite needs it to parse responses.  See `flywrite-prose-prompt` and `flywrite-academic-prompt` in `flywrite.el` for the full built-in prompts.  Longer prompts cost more per call.  Anthropic's prompt caching helps, but other providers may not cache.
 
 ```elisp
-(setq flywrite-system-prompt
+(setf (alist-get 'academic flywrite-prompt-alist)
   "You are a writing assistant. Analyze the text for grammar,
 clarity, and style.  Return JSON only. No text outside the JSON.
 
@@ -88,10 +88,12 @@ Rules:
 - Flag weasel words (e.g., 'significantly' without statistical
   context, 'often', 'usually' without citation)
 - Flag informal transitions (e.g., 'So,', 'Also,', 'Plus')
-  -- prefer 'Therefore', 'Additionally', 'Moreover'")
+  -- prefer 'Therefore', 'Additionally', 'Moreover'
+- Flag split infinitives
+- Flag passive voice")
 ```
 
-**Custom named style:** Register your own named style by adding an entry to `flywrite-prompt-alist`, then select it like a built-in style. Keep the JSON format section unchanged, flywrite needs it to parse responses.
+**Custom named style:** Register a new style by adding an entry to `flywrite-prompt-alist`, then select it.  Keep the JSON format section unchanged, flywrite needs it to parse responses.
 
 ```elisp
 (add-to-list 'flywrite-prompt-alist
@@ -130,6 +132,8 @@ Rules:
 ```elisp
 ((nil . ((flywrite-system-prompt . prose))))
 ```
+
+**Switch prompt interactively:** Run `M-x flywrite-set-prompt` to change the prompt style for the current buffer.  Shows all registered styles with completion.
 
 ### Settings
 

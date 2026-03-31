@@ -1045,12 +1045,6 @@
       (should (string-match-p "weasel words" prompt)))))
 
 
-(ert-deftest flywrite-test-prompt-custom-string ()
-  "A custom string passes through unchanged."
-  (let ((flywrite-system-prompt "my custom prompt"))
-    (should (string= (flywrite--get-system-prompt) "my custom prompt"))))
-
-
 (ert-deftest flywrite-test-prompt-unknown-symbol-errors ()
   "An unknown symbol signals an error."
   (let ((flywrite-system-prompt 'nonexistent))
@@ -1063,12 +1057,6 @@
     (should (functionp safe-p))
     (should (funcall safe-p 'prose))
     (should (funcall safe-p 'academic))))
-
-
-(ert-deftest flywrite-test-prompt-safe-local-variable-rejects-string ()
-  "Custom string prompts are not safe as file-local variables."
-  (let ((safe-p (get 'flywrite-system-prompt 'safe-local-variable)))
-    (should-not (funcall safe-p "my custom prompt"))))
 
 
 (ert-deftest flywrite-test-prompt-safe-local-variable-rejects-unknown ()

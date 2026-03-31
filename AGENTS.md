@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 flywrite is an Emacs package providing `flywrite-mode`, a minor mode for inline writing suggestions powered by an LLM API. Suggestions appear as flymake diagnostics (wavy underlines) with explanations via flymake-popon or the echo area. The UX goal is unobtrusive, always-on feedback (like Flyspell but for style/clarity, built on flymake).
 
-The entire package lives in a single file: `flywrite.el`. Unit tests are in `test-flywrite.el`. Prompt regression tests are in `test-flywrite-prompt.el` (sends samples to a real LLM API for every prompt style); its cache file `test-flywrite-prompt-cache.json` is managed by the test runner and should never be edited manually. Sample files in `samples/` are used for manual end-to-end testing in Emacs.
+The entire package lives in a single file: `flywrite.el`. Unit tests are in `test-flywrite.el`. Prompt regression tests are in `test-flywrite-prompt.el` (sends samples to a real LLM API for every prompt style); its cache file `test-flywrite-prompt-cache.json` is managed by the test runner and should never be edited or removed manually. Sample files in `samples/` are used for manual end-to-end testing in Emacs.
 
 ## Development
 

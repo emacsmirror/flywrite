@@ -49,6 +49,24 @@ The `./test` script runs these checks:
 6. **ERT unit tests** -- `test-flywrite.el`
 7. **Prompt regression tests** -- `test-flywrite-prompt.el`
 
+Byte-compile standalone:
+```bash
+emacs -Q --batch \
+  --eval "(setq byte-compile-error-on-warn t)" \
+  -f batch-byte-compile flywrite.el \
+  && rm -f flywrite.elc
+```
+
+Run a single ERT test by name:
+```bash
+emacs -Q --batch -l flywrite.el -l test-flywrite.el \
+  --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
+```
+
+Manual end-to-end testing: open a file in `samples/`, run
+`M-x flywrite-mode`, and verify diagnostics appear as expected.
+See [`samples/README.md`](samples/README.md) for file descriptions.
+
 ### Prompt regression tests
 
 `test-flywrite-prompt.el` sends text samples to a real LLM API and
@@ -73,26 +91,12 @@ source .env
 avoid redundant API calls. The cache key includes the input text,
 model, temperature, and prompt hash, so entries are automatically
 invalidated when a system prompt changes.  Stale entries are pruned on
-each run.  Do not edit the cache file manually -- it is managed by the
-test runner.
+each run.
 
-Byte-compile standalone:
+Run only the prompt regression tests:
 ```bash
-emacs -Q --batch \
-  --eval "(setq byte-compile-error-on-warn t)" \
-  -f batch-byte-compile flywrite.el \
-  && rm -f flywrite.elc
+emacs -Q --batch -l flywrite.el -l test-flywrite-prompt.el -f ert-run-tests-batch-and-exit
 ```
-
-Run a single ERT test by name:
-```bash
-emacs -Q --batch -l flywrite.el -l test-flywrite.el \
-  --eval '(ert-run-tests-batch-and-exit "flywrite-test-NAME")'
-```
-
-Manual end-to-end testing: open a file in `samples/`, run
-`M-x flywrite-mode`, and verify diagnostics appear as expected.
-See [`samples/README.md`](samples/README.md) for file descriptions.
 
 ## Code style
 - Follow [Emacs Lisp conventions](https://www.gnu.org/software/emacs/manual/html_node/elisp/Tips.html) and the [Emacs Lisp Style Guide](https://github.com/bbatsov/emacs-lisp-style-guide).

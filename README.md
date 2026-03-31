@@ -58,7 +58,7 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
               "\n- Flag passive voice"))
 ```
 
-**Modify a built-in prompt:** Modify `flywrite-academic-prompt` or `flywrite-prose-prompt`.  The example below copies the academic prompt and adds two rules at the end.
+**Replace a built-in prompt:** For full control, replace `flywrite-academic-prompt` or `flywrite-prose-prompt`.  This won't pick up upstream prompt changes on package update.
 
 ```elisp
 (setq flywrite-academic-prompt
@@ -102,7 +102,7 @@ Rules:
 - Flag passive voice")
 ```
 
-**Custom named style:** Register a new prompt in `flywrite-prompt-alist`, then select it.  Keep the JSON format section unchanged, flywrite needs it to parse responses.
+**Custom named style:** Register a new prompt in `flywrite-prompt-alist`, then select it.
 
 ```elisp
 (defvar my-scifi-prompt

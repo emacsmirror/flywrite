@@ -49,6 +49,15 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 (setq flywrite-system-prompt 'academic)  ; or 'prose
 ```
 
+**Add rules to a built-in prompt:** Append to `flywrite-academic-prompt` or `flywrite-prose-prompt`.  This preserves upstream changes when the package is updated.
+
+```elisp
+(setq flywrite-academic-prompt
+      (concat flywrite-academic-prompt
+              "\n- Flag split infinitives"
+              "\n- Flag passive voice"))
+```
+
 **Modify a built-in prompt:** Modify `flywrite-academic-prompt` or `flywrite-prose-prompt`.  The example below copies the academic prompt and adds two rules at the end.
 
 ```elisp

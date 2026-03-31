@@ -128,10 +128,7 @@ diff <( \
   }' flywrite.el \
   | sed '1s/^  "//; $s/"$//' \
 ) <( \
-  sed -n '/^(setq flywrite-academic-prompt$/,/  -- prefer/{
-    /^(setq/d
-    p
-  }' README.md \
+  sed -n '/^  "You are a writing assistant/,/  -- prefer/{p;}' README.md \
   | sed '1s/^  "//; $s/"$//' \
 )
 

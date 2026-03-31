@@ -1067,9 +1067,10 @@
 
 (ert-deftest flywrite-test-prompt-user-defined-style ()
   "Users can register a custom named style via `flywrite-prompt-alist'."
+  (defvar flywrite-test--scifi-prompt "You are a sci-fi editor.")
   (let ((flywrite-prompt-alist flywrite-prompt-alist)
         (flywrite-system-prompt 'scifi))
-    (push '(scifi . "You are a sci-fi editor.") flywrite-prompt-alist)
+    (push '(scifi . flywrite-test--scifi-prompt) flywrite-prompt-alist)
     (should (string= (flywrite--get-system-prompt)
                      "You are a sci-fi editor."))
     ;; User-added style is also accepted by safe-local-variable predicate.

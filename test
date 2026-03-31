@@ -128,8 +128,8 @@ diff <( \
   }' flywrite.el \
   | sed '1s/^  "//; $s/"$//' \
 ) <( \
-  sed -n '/^(setf (alist-get .academic/,/  -- prefer/{
-    /^(setf/d
+  sed -n '/^(setq flywrite-academic-prompt$/,/  -- prefer/{
+    /^(setq/d
     p
   }' README.md \
   | sed '1s/^  "//; $s/"$//' \

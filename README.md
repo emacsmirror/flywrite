@@ -49,10 +49,10 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 (setq flywrite-system-prompt 'academic)  ; or 'prose
 ```
 
-**Modify a built-in prompt:** Override an existing style with `setf`.  The example below copies the academic prompt and adds two rules at the end.  Keep the JSON format section unchanged, flywrite needs it to parse responses.  See `flywrite-prose-prompt` and `flywrite-academic-prompt` in `flywrite.el` for the full built-in prompts.  Longer prompts cost more per call.  Anthropic's prompt caching helps, but other providers may not cache.
+**Modify a built-in prompt:** Modify `flywrite-academic-prompt` or `flywrite-prose-prompt`.  The example below copies the academic prompt and adds two rules at the end.
 
 ```elisp
-(setf (alist-get 'academic flywrite-prompt-alist)
+(setq flywrite-academic-prompt
   "You are a writing assistant. Analyze the text for grammar,
 clarity, and style.  Return JSON only. No text outside the JSON.
 
@@ -93,11 +93,11 @@ Rules:
 - Flag passive voice")
 ```
 
-**Custom named style:** Register a new style by adding an entry to `flywrite-prompt-alist`, then select it.  Keep the JSON format section unchanged, flywrite needs it to parse responses.
+**Custom named style:** Register a new prompt in `flywrite-prompt-alist`, then select it.  Keep the JSON format section unchanged, flywrite needs it to parse responses.
 
 ```elisp
-(add-to-list 'flywrite-prompt-alist
-             '(scifi . "You are a sci-fi writing assistant.
+(defvar my-scifi-prompt
+  "You are a sci-fi writing assistant.
 Analyze the text for grammar, clarity, and style.
 Return JSON only. No text outside the JSON.
 
@@ -114,7 +114,8 @@ Rules:
 - One entry per distinct issue
 - Do not flag correct text
 - Flag inconsistent use of sci-fi terminology
-- Flag technobabble that obscures meaning"))
+- Flag technobabble that obscures meaning")
+(add-to-list 'flywrite-prompt-alist '(scifi . my-scifi-prompt))
 (setq flywrite-system-prompt 'scifi)
 ```
 

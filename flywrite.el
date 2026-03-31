@@ -151,11 +151,17 @@ Rules:
 
 
 (defvar flywrite-prompt-alist
-  `((prose . ,flywrite-prose-prompt)
-    (academic . ,flywrite-academic-prompt))
-  "Alist mapping prompt style symbols to prompt strings.
+  '((prose . flywrite-prose-prompt)
+    (academic . flywrite-academic-prompt))
+  "Alist mapping prompt style symbols to variable symbols.
+Each entry is (STYLE . VARIABLE) where VARIABLE names a defvar
+holding the prompt string.  `flywrite--get-system-prompt' resolves
+the variable at call time, so `setq' on the variable takes effect
+immediately.
+
 Users can add entries to register custom named styles:
-  (add-to-list \\='flywrite-prompt-alist \\='(scifi . \"You are ...\"))
+  (defvar my-scifi-prompt \"You are ...\")
+  (add-to-list \\='flywrite-prompt-alist \\='(scifi . my-scifi-prompt))
   (setq flywrite-system-prompt \\='scifi)")
 
 
@@ -358,12 +364,13 @@ configure it.  See the README for details."
 
 (defun flywrite--get-system-prompt ()
   "Return the system prompt string.
-Look up `flywrite-system-prompt' in `flywrite-prompt-alist'."
+Look up `flywrite-system-prompt' in `flywrite-prompt-alist' and
+resolve the variable symbol to its value."
   (let ((entry (assq flywrite-system-prompt flywrite-prompt-alist)))
     (unless entry
       (error "Unknown flywrite-system-prompt style: %s"
              flywrite-system-prompt))
-    (cdr entry)))
+    (symbol-value (cdr entry))))
 
 
 ;;;; ---- Logging ----

@@ -56,7 +56,7 @@ Run `M-x flywrite-mode`.  As you move or type, flywrite will automatically run c
 
 ```elisp
 (setq flywrite-academic-prompt
-  "You are a writing assistant. Analyze the text for grammar,
+  "You are an academic writing assistant. Analyze the text for grammar,
 clarity, and style.  Return JSON only. No text outside the JSON.
 
 If the text is fine:

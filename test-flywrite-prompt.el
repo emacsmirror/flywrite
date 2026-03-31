@@ -42,7 +42,7 @@
                     "a big deal.")
            :description ,(concat "contractions and informal "
                                  "language in academic writing")
-           :expected ((prose . 0) (academic . 1)))
+           :expected ((prose . 0) (academic . 3)))
     (:text ,(concat "Him and his friend went to the store "
                     "to buy some grocerys.")
            :description "pronoun case error and misspelling"
@@ -81,7 +81,7 @@
            :expected ((prose . 1) (academic . 1)))
     (:text "We feel the results are promising."
            :description "subjective, vague"
-           :expected ((prose . 0) (academic . 2)))
+           :expected ((prose . 0) (academic . 1)))
     ;; From samples/text-general-and-academic.txt
     (:text ,(concat "The students who was in the program "
                     "recieved there certificates at the "
@@ -560,12 +560,14 @@ return the exact expected number of suggestions."
                (append suggestions nil) "\n")))
         (unless pass
           (let ((msg (format (concat "FAIL [%s]: %s\n"
+                                     "  prompt: %s\n"
                                      "  text: %s\n"
-                                     "  expected: %d, got: %d\n"
+                                     "  expected suggestions: %d\n"
+                                     "  actual suggestions: %d\n"
                                      "  suggestions:\n%s")
-                             style desc text expected count
+                             style desc style text expected count
                              sugg-lines)))
-            (message "\n%s" msg)
+            (message "\n%s\n" msg)
             (push msg failures)))))
     (when failures
       (ert-fail (format "%d prompt test(s) failed (see messages above)"

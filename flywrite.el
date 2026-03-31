@@ -833,7 +833,9 @@ Clears the pending queue on 429 rate-limit errors."
               (flywrite--flush-queue)))))
       (error (if (and (listp err-info) (member 529 err-info))
                  "API overloaded (529), try again later"
-               (format "API request failed: %s" err-info))))))
+               (truncate-string-to-width
+                (format "API request failed: %s" err-info)
+                80 nil nil t))))))
 
 
 (defun flywrite--extract-response-text ()
@@ -1010,7 +1012,9 @@ request.  START-TIME is used for latency logging."
              (flywrite--log "Response handler error: %s hash=%s\n%s"
                             (error-message-string err) hash
                             (or body "<empty>"))
-             (message "flywrite: %s" (error-message-string err)))))
+             (message "flywrite: %s"
+                      (truncate-string-to-width
+                       (error-message-string err) 80 nil nil t)))))
 
       ;; Always: decrement counter and drain queue
       (when (buffer-live-p buf)

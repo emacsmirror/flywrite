@@ -1412,6 +1412,9 @@ Eglot replaces the buffer-local value with only its own backend."
   ;; Reset all state
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
+  (setq flywrite--in-flight 0)
+  (setq flywrite--report-fn nil)
+  (setq flywrite--validated nil)
   (clrhash flywrite--checked-paragraphs)
   (clrhash flywrite--region-hashes))
 

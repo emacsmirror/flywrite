@@ -4,6 +4,7 @@ Files for manual end-to-end testing in Emacs. Open a file, run `M-x flywrite-mod
 
 | File | Description |
 |------|-------------|
+| `duplicate-errors.txt` | Same pronoun case error ("him") in two sentences (tests per-occurrence underlines) |
 | `example.txt` | Quick start sample text from the README (affect/effect, then/than, weak phrasing) |
 | `latex-complex.tex` | Long LaTeX exam document with heavy markup, lists, and math (stress test for markup suppression) |
 | `latex-custom-environment.tex` | Minimal LaTeX exam with a solution block (should handle custom environments) |

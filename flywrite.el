@@ -905,7 +905,9 @@ Also strips trailing commas before ] or } which some LLMs produce."
 BEG, END, HASH identify the checked region."
   (condition-case parse-err
       (let* ((parsed (flywrite--parse-response-json text))
-             (suggestions (alist-get 'suggestions parsed)))
+             (suggestions (alist-get 'suggestions parsed))
+             (region-text (buffer-substring-no-properties beg end))
+             (quote-offsets (make-hash-table :test 'equal)))
         (flywrite--log "Suggestions: %d for [%d-%d] hash=%s"
                        (length suggestions) beg end hash)
 
@@ -917,11 +919,14 @@ BEG, END, HASH identify the checked region."
                       (<= (flymake-diagnostic-end diag) end)))
                flywrite--diagnostics))
 
-        ;; Add new diagnostics
-        (let ((region-text (buffer-substring-no-properties beg end)))
-          (dolist (suggestion (append suggestions nil))
-            (flywrite--make-suggestion-diagnostic
-             buf beg region-text suggestion hash)))
+        ;; Add new diagnostics, tracking per-quote search offsets so
+        ;; duplicate quotes match successive occurrences.
+        (dolist (suggestion (append suggestions nil))
+          (let* ((q (alist-get 'quote suggestion))
+                 (start (or (gethash q quote-offsets) 0))
+                 (matched (flywrite--make-suggestion-diagnostic
+                           buf beg region-text suggestion hash start)))
+            (when matched (puthash q matched quote-offsets))))
 
         ;; Report to flymake and mark checked
         (flywrite--report-to-flymake hash)
@@ -933,15 +938,18 @@ BEG, END, HASH identify the checked region."
 
 
 (defun flywrite--make-suggestion-diagnostic
-    (buf beg region-text suggestion hash)
+    (buf beg region-text suggestion hash search-start)
   "Create a diagnostic from SUGGESTION and add it to `flywrite--diagnostics'.
 BUF is the source buffer, BEG is the region start, REGION-TEXT is
-the region content.  HASH is for logging."
+the region content.  HASH is for logging.  SEARCH-START is the
+offset into REGION-TEXT at which to begin searching for the quote.
+Returns the match end offset on success, nil otherwise."
   (let* ((quote-str (alist-get 'quote suggestion))
          (reason (alist-get 'reason suggestion))
          (case-fold-search nil)
          (match-pos (and quote-str
-                         (string-match (regexp-quote quote-str) region-text))))
+                         (string-match (regexp-quote quote-str)
+                                       region-text search-start))))
     (if match-pos
         (let ((diag-beg (copy-marker (+ beg match-pos)))
               (diag-end (copy-marker (+ beg match-pos (length quote-str)) t)))
@@ -951,8 +959,11 @@ the region content.  HASH is for logging."
                 flywrite--diagnostics)
           (flywrite--log "Diagnostic: [%d-%d] %s hash=%s"
                          (marker-position diag-beg)
-                         (marker-position diag-end) reason hash))
-      (flywrite--log "Quote not found, skipping: %s hash=%s" quote-str hash))))
+                         (marker-position diag-end) reason hash)
+          (+ match-pos (length quote-str)))
+      (flywrite--log "Quote not found, skipping: %s hash=%s"
+                     quote-str hash)
+      nil)))
 
 
 (defun flywrite--report-to-flymake (hash)

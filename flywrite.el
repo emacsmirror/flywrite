@@ -325,9 +325,6 @@ without needing to edit."
   "The flymake report function, stored when the backend is invoked.")
 
 
-(defvar-local flywrite--diagnostics nil
-  "List of active flymake diagnostics.")
-
 
 (defvar-local flywrite--region-hashes (make-hash-table :test 'equal)
   "Map from \"beg-end\" region key to the last-known content hash.
@@ -482,41 +479,6 @@ Checks font-lock faces and major mode."
 ;;;; ---- Change detection ----
 
 
-(defun flywrite--diag-beg (diag)
-  "Return the current start position of DIAG.
-Prefers the flymake overlay position (which auto-adjusts with
-buffer edits) over the struct field (which becomes a stale
-integer after the backend reports)."
-  (let ((ov (flymake--diag-overlay diag)))
-    (if (and ov (overlayp ov) (overlay-buffer ov))
-        (overlay-start ov)
-      (flymake-diagnostic-beg diag))))
-
-(defun flywrite--diag-end (diag)
-  "Return the current end position of DIAG.
-See `flywrite--diag-beg' for rationale."
-  (let ((ov (flymake--diag-overlay diag)))
-    (if (and ov (overlayp ov) (overlay-buffer ov))
-        (overlay-end ov)
-      (flymake-diagnostic-end diag))))
-
-
-(defun flywrite--clear-paragraph-diagnostics (ubeg uend)
-  "Remove diagnostics overlapping UBEG..UEND and re-report."
-  (when flywrite--diagnostics
-    (let ((old-count (length flywrite--diagnostics)))
-      (setq flywrite--diagnostics
-            (cl-remove-if
-             (lambda (diag)
-               (let ((dbeg (flywrite--diag-beg diag))
-                     (dend (flywrite--diag-end diag)))
-                 (or (not (and dbeg dend))
-                     (and (>= dbeg ubeg) (<= dend uend)))))
-             flywrite--diagnostics))
-      (when (and (/= old-count (length flywrite--diagnostics))
-                 flywrite--report-fn)
-        (flywrite--sync-diagnostic-positions)
-        (funcall flywrite--report-fn flywrite--diagnostics)))))
 
 
 (defun flywrite--update-region-hash (ubeg uend hash)
@@ -530,7 +492,8 @@ See `flywrite--diag-beg' for rationale."
 
 (defun flywrite--process-changed-paragraph (ubeg uend hash)
   "Process a single changed paragraph bounded by UBEG..UEND with content HASH."
-  (flywrite--clear-paragraph-diagnostics ubeg uend)
+  (when flywrite--report-fn
+    (funcall flywrite--report-fn nil :region (cons ubeg uend)))
   (flywrite--update-region-hash ubeg uend hash)
 
   ;; Remove stale pending queue entries for this region
@@ -954,29 +917,24 @@ BEG, END, HASH identify the checked region."
       (let* ((parsed (flywrite--parse-response-json text))
              (suggestions (alist-get 'suggestions parsed))
              (region-text (buffer-substring-no-properties beg end))
-             (quote-offsets (make-hash-table :test 'equal)))
+             (quote-offsets (make-hash-table :test 'equal))
+             (new-diags nil))
         (flywrite--log "Suggestions: %d for [%d-%d] hash=%s"
                        (length suggestions) beg end hash)
 
-        ;; Remove old diagnostics for this region
-        (setq flywrite--diagnostics
-              (cl-remove-if
-               (lambda (diag)
-                 (and (>= (flywrite--diag-beg diag) beg)
-                      (<= (flywrite--diag-end diag) end)))
-               flywrite--diagnostics))
-
-        ;; Add new diagnostics, tracking per-quote search offsets so
+        ;; Build new diagnostics, tracking per-quote search offsets so
         ;; duplicate quotes match successive occurrences.
         (dolist (suggestion (append suggestions nil))
           (let* ((q (alist-get 'quote suggestion))
                  (start (or (gethash q quote-offsets) 0))
-                 (matched (flywrite--make-suggestion-diagnostic
-                           buf beg region-text suggestion hash start)))
-            (when matched (puthash q matched quote-offsets))))
+                 (result (flywrite--make-suggestion-diagnostic
+                          buf beg region-text suggestion hash start)))
+            (when result
+              (push (car result) new-diags)
+              (puthash q (cdr result) quote-offsets))))
 
-        ;; Report to flymake and mark checked
-        (flywrite--report-to-flymake hash)
+        ;; Report to flymake with :region and mark checked
+        (flywrite--report-to-flymake (nreverse new-diags) beg end hash)
         (puthash hash t flywrite--checked-paragraphs))
     (error
      (flywrite--log "LLM unparseable response: %s hash=%s\n%s"
@@ -986,11 +944,11 @@ BEG, END, HASH identify the checked region."
 
 (defun flywrite--make-suggestion-diagnostic
     (buf beg region-text suggestion hash search-start)
-  "Create a diagnostic from SUGGESTION and add it to `flywrite--diagnostics'.
+  "Create and return a diagnostic from SUGGESTION, or nil.
 BUF is the source buffer, BEG is the region start, REGION-TEXT is
 the region content.  HASH is for logging.  SEARCH-START is the
 offset into REGION-TEXT at which to begin searching for the quote.
-Returns the match end offset on success, nil otherwise."
+Returns (DIAG . MATCH-END) on success, nil otherwise."
   (let* ((quote-str (alist-get 'quote suggestion))
          (reason (alist-get 'reason suggestion))
          (case-fold-search nil)
@@ -998,38 +956,26 @@ Returns the match end offset on success, nil otherwise."
                          (string-match (regexp-quote quote-str)
                                        region-text search-start))))
     (if match-pos
-        (let ((diag-beg (copy-marker (+ beg match-pos)))
-              (diag-end (copy-marker (+ beg match-pos (length quote-str)) t)))
-          (push (flymake-make-diagnostic
-                 buf diag-beg diag-end 'flywrite-diagnostic-type
-                 (concat reason " [flywrite]"))
-                flywrite--diagnostics)
+        (let* ((diag-beg (copy-marker (+ beg match-pos)))
+               (diag-end (copy-marker
+                          (+ beg match-pos (length quote-str)) t))
+               (diag (flymake-make-diagnostic
+                      buf diag-beg diag-end 'flywrite-diagnostic-type
+                      (concat reason " [flywrite]"))))
           (flywrite--log "Diagnostic: [%d-%d] %s hash=%s"
                          (marker-position diag-beg)
                          (marker-position diag-end) reason hash)
-          (+ match-pos (length quote-str)))
+          (cons diag (+ match-pos (length quote-str))))
       (flywrite--log "Quote not found, skipping: %s hash=%s"
                      quote-str hash)
       nil)))
 
 
-(defun flywrite--sync-diagnostic-positions ()
-  "Copy overlay positions back into diagnostic structs.
-Flymake overlays auto-adjust when the buffer is edited, but the
-struct beg/end fields become stale integers.  Sync them before
-reporting so flymake recreates overlays at the correct positions."
-  (dolist (diag flywrite--diagnostics)
-    (let ((ov (flymake--diag-overlay diag)))
-      (when (and ov (overlayp ov) (overlay-buffer ov))
-        (setf (flymake--diag-beg diag) (overlay-start ov))
-        (setf (flymake--diag-end diag) (overlay-end ov))))))
 
-(defun flywrite--report-to-flymake (hash)
-  "Report `flywrite--diagnostics' to flymake.  HASH is for logging."
+(defun flywrite--report-to-flymake (diags beg end hash)
+  "Report DIAGS to flymake for region BEG..END.  HASH is for logging."
   (if flywrite--report-fn
-      (progn
-        (flywrite--sync-diagnostic-positions)
-        (funcall flywrite--report-fn flywrite--diagnostics))
+      (funcall flywrite--report-fn diags :region (cons beg end))
     (flywrite--log "Warning: report-fn nil, diag-fns=%s hash=%s"
                    flymake-diagnostic-functions hash)
     (unless (memq #'flywrite-flymake flymake-diagnostic-functions)
@@ -1231,11 +1177,12 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
 
 (defun flywrite-flymake (report-fn &rest _args)
   "Flymake backend for flywrite.  Store REPORT-FN for later use.
-Reports any existing diagnostics immediately so flymake can display them."
+Reports empty diagnostics for a zero-width region so flymake
+considers this backend responsive without clearing existing
+diagnostics."
   (flywrite--log "flywrite-flymake called by flymake, report-fn set")
   (setq flywrite--report-fn report-fn)
-  (flywrite--sync-diagnostic-positions)
-  (funcall report-fn flywrite--diagnostics))
+  (funcall report-fn nil :region (cons 1 1)))
 
 
 ;;;; ---- Interactive commands ----
@@ -1344,7 +1291,6 @@ Prompts for confirmation when the count exceeds
 (defun flywrite-clear ()
   "Clear all flywrite diagnostics and reset caches."
   (interactive)
-  (setq flywrite--diagnostics nil)
   (setq flywrite--dirty-registry nil)
   (setq flywrite--pending-queue nil)
   (clrhash flywrite--checked-paragraphs)
@@ -1440,7 +1386,6 @@ Eglot replaces the buffer-local value with only its own backend."
   (setq flywrite--in-flight 0)
   (setq flywrite--pending-queue nil)
   (setq flywrite--connection-buffers nil)
-  (setq flywrite--diagnostics nil)
   (setq flywrite--report-fn nil)
   (setq flywrite--validated nil)
 
@@ -1454,6 +1399,12 @@ Eglot replaces the buffer-local value with only its own backend."
   ;; enablement so our hook is first in after-change-functions)
   (add-hook 'after-change-functions #'flywrite--after-change nil t)
   (add-hook 'flymake-diagnostic-functions #'flywrite-flymake nil t)
+
+  ;; Invoke flymake-start immediately (not deferred) so flymake calls
+  ;; flywrite-flymake and sets report-fn before any checks run.
+  ;; flymake-mode's own start is deferred, which would leave report-fn
+  ;; nil until the idle timer fires.
+  (flymake-start)
 
   ;; Eglot replaces flymake-diagnostic-functions with only its own
   ;; backend, so re-add ours after eglot setup.
@@ -1512,9 +1463,7 @@ Eglot replaces the buffer-local value with only its own backend."
   (remove-hook 'eglot-managed-mode-hook #'flywrite--ensure-flymake-backend t)
   (remove-hook 'kill-buffer-hook #'flywrite--disable t)
 
-  ;; Clear diagnostics before reporting so flymake-start doesn't
-  ;; re-report stale diagnostics via the flywrite-flymake backend
-  (setq flywrite--diagnostics nil)
+  ;; Clear diagnostics before removing the backend
   (when flywrite--report-fn
     (funcall flywrite--report-fn nil))
   (when (bound-and-true-p flymake-mode)

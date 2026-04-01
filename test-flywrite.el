@@ -542,26 +542,28 @@
       (text-mode)
       (flywrite-mode 1)
       (let ((called nil))
-        (flywrite-flymake (lambda (_diags) (setq called t)))
+        (flywrite-flymake (lambda (_diags &rest _args) (setq called t)))
         (should called)
         (should flywrite--report-fn))
       (flywrite-mode -1))))
 
 
-(ert-deftest flywrite-test-flymake-backend-reports-existing-diags ()
-  "The flymake backend reports existing diagnostics immediately."
+(ert-deftest flywrite-test-flymake-backend-reports-empty-region ()
+  "The flymake backend stores report-fn and reports empty region."
   (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
     (with-temp-buffer
       (text-mode)
       (flywrite-mode 1)
       (insert "Test text.")
-      ;; Add a fake diagnostic
-      (push (flymake-make-diagnostic
-             (current-buffer) 1 5 :note "test [flywrite]")
-            flywrite--diagnostics)
-      (let ((reported nil))
-        (flywrite-flymake (lambda (diags) (setq reported diags)))
-        (should (= (length reported) 1)))
+      (let ((called nil)
+            (called-region nil))
+        (flywrite-flymake
+         (lambda (_diags &rest args)
+           (setq called t)
+           (setq called-region (plist-get args :region))))
+        (should called)
+        (should flywrite--report-fn)
+        (should (equal called-region (cons 1 1))))
       (flywrite-mode -1))))
 
 
@@ -934,6 +936,16 @@
 ;;;; ---- End-to-end: mock API ----
 
 
+(defun flywrite-test--diag-text-at-overlay (diag)
+  "Return the buffer text under DIAG's overlay.
+Uses the overlay position (which auto-adjusts with buffer edits)
+rather than the struct field (which can become stale)."
+  (let ((ov (flymake--diag-overlay diag)))
+    (when (and ov (overlayp ov) (overlay-buffer ov))
+      (buffer-substring-no-properties
+       (overlay-start ov) (overlay-end ov)))))
+
+
 (defun flywrite-test--make-response-buffer (json-body)
   "Create a buffer mimicking an HTTP 200 response with JSON-BODY string."
   (let ((buf (generate-new-buffer " *test-http-response*")))
@@ -993,8 +1005,8 @@
 
         ;; --- Step 3: Verify diagnostic was created ---
         (should (= api-call-count 1))
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (= (flymake-diagnostic-beg diag) 1))
           (should (= (flymake-diagnostic-end diag) 4))
           (should (string-match-p "subject pronoun"
@@ -1021,7 +1033,7 @@
 
         ;; --- Step 6: Verify diagnostic removed, API called ---
         (should (= api-call-count 2))
-        (should (= (length flywrite--diagnostics) 0)))
+        (should (= (length (flymake-diagnostics)) 0)))
 
       (flywrite-mode -1))))
 
@@ -1064,8 +1076,8 @@
         (flywrite--after-change 1 (point-max) 0)
         (flywrite--idle-timer-fn (current-buffer))
 
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           ;; "The show" starts at position 27, not 16
           (should (= (flymake-diagnostic-beg diag) 27))
           (should (= (flymake-diagnostic-end diag) 35))))
@@ -1113,9 +1125,9 @@
         (flywrite--after-change 1 (point-max) 0)
         (flywrite--idle-timer-fn (current-buffer))
 
-        (should (= (length flywrite--diagnostics) 2))
-        ;; Diagnostics are pushed (newest first), so reverse for order
-        (let ((diags (reverse flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 2))
+        ;; flymake-diagnostics returns overlays in position order
+        (let ((diags (flymake-diagnostics)))
           ;; First "him" at positions 8-11
           (should (= (flymake-diagnostic-beg (nth 0 diags)) 8))
           (should (= (flymake-diagnostic-end (nth 0 diags)) 11))
@@ -1168,8 +1180,8 @@ Verifies underlined strings, not numeric positions."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 2: Verify one diagnostic, underlined text is "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -1184,12 +1196,10 @@ Verifies underlined strings, not numeric positions."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 5: Verify diagnostic still underlines "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
-                           (buffer-substring-no-properties
-                            (flymake-diagnostic-beg diag)
-                            (flymake-diagnostic-end diag))))))
+                           (flywrite-test--diag-text-at-overlay diag)))))
 
       (flywrite-mode -1))))
 
@@ -1236,8 +1246,8 @@ The inserted text is longer than the entire original paragraph."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 2: Verify diagnostic underlines "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -1254,12 +1264,11 @@ The inserted text is longer than the entire original paragraph."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 5: Verify diagnostic still underlines "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
-                           (buffer-substring-no-properties
-                            (flymake-diagnostic-beg diag)
-                            (flymake-diagnostic-end diag))))))
+                           (flywrite-test--diag-text-at-overlay diag)))))
+
 
       (flywrite-mode -1))))
 
@@ -1307,8 +1316,8 @@ The inserted text is longer than the entire original paragraph."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 2: Verify diagnostic underlines "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -1324,12 +1333,11 @@ The inserted text is longer than the entire original paragraph."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 5: Verify diagnostic still underlines "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
-                           (buffer-substring-no-properties
-                            (flymake-diagnostic-beg diag)
-                            (flymake-diagnostic-end diag))))))
+                           (flywrite-test--diag-text-at-overlay diag)))))
+
 
       (flywrite-mode -1))))
 
@@ -1418,8 +1426,8 @@ paragraph 1 changes length, so the original beg/end are stale."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 5: Verify one diagnostic underlining "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -1499,8 +1507,8 @@ change), then response arrives stale, re-check places diagnostic."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 5: Verify diagnostic underlines "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should
            (string= "Him"
                     (buffer-substring-no-properties
@@ -1588,7 +1596,7 @@ Stale response is discarded, re-check finds no errors."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 6: Verify no diagnostics ---
-        (should (= (length flywrite--diagnostics) 0)))
+        (should (= (length (flymake-diagnostics)) 0)))
 
       (flywrite-mode -1))))
 
@@ -1675,8 +1683,8 @@ Re-check flags \"wented\" instead of the original \"Him\"."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 6: Verify diagnostic underlines "wented" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should
            (string= "wented"
                     (buffer-substring-no-properties
@@ -1789,8 +1797,8 @@ the correct diagnostic on \"Him\"."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 5: Verify exactly one diagnostic on "Him" ---
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should
            (string= "Him"
                     (buffer-substring-no-properties
@@ -1873,11 +1881,18 @@ the correct diagnostic on \"Him\"."
   (with-temp-buffer
     (let ((flywrite-api-url "https://api.anthropic.com/v1/messages")
           (flywrite-api-key "test-key")
-          (flywrite-system-prompt 'academic))
+          (flywrite-system-prompt 'academic)
+          (clear-called nil))
       (flywrite-mode 1)
-      (setq flywrite--diagnostics '(fake-diag))
+      (insert "Test text.")
+      ;; Intercept report-fn to detect clearing
+      (let ((orig-report-fn flywrite--report-fn))
+        (setq flywrite--report-fn
+              (lambda (diags &rest args)
+                (when (null diags) (setq clear-called t))
+                (apply orig-report-fn diags args))))
       (setq-local flywrite-system-prompt 'prose)
-      (should (null flywrite--diagnostics))
+      (should clear-called)
       (flywrite-mode -1))))
 
 
@@ -2019,8 +2034,8 @@ on the unchanged second sentence."
 
         ;; --- Step 2: Verify one diagnostic underlines "Him" ---
         (should (= api-call-count 1))
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -2032,15 +2047,15 @@ on the unchanged second sentence."
         (replace-match "beautiful")
 
         ;; --- Step 4: All diagnostics in this paragraph should clear ---
-        (should (= (length flywrite--diagnostics) 0))
+        (should (= (length (flymake-diagnostics)) 0))
 
         ;; --- Step 5: Re-check fires, same mock response ---
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; --- Step 6: Verify second API call and diagnostic restored ---
         (should (= api-call-count 2))
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -2103,7 +2118,7 @@ on the unchanged second sentence."
           (funcall deferred-callback nil))
 
         ;; Stale response should be discarded: no diagnostics applied
-        (should (= (length flywrite--diagnostics) 0))
+        (should (= (length (flymake-diagnostics)) 0))
 
         ;; The paragraph should be re-dirtied for re-check
         (should flywrite--dirty-registry)
@@ -2298,15 +2313,15 @@ on the unchanged second sentence."
           (funcall deferred-callback nil))
 
         ;; First response should be discarded (stale)
-        (should (= (length flywrite--diagnostics) 0))
+        (should (= (length (flymake-diagnostics)) 0))
 
         ;; Idle timer should dispatch re-check
         (flywrite--idle-timer-fn (current-buffer))
         (should (= api-call-count 2))
 
         ;; Re-check should produce the diagnostic
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -2481,7 +2496,7 @@ on the unchanged second sentence."
         ;; - paragraph 1 has "Him" -> 1 diagnostic
         ;; - paragraph 2 has "Her" -> 1 diagnostic
         ;; - paragraph 3 has no match -> 0 diagnostics
-        (should (= (length flywrite--diagnostics) 2))
+        (should (= (length (flymake-diagnostics)) 2))
 
         ;; Verify the diagnostic texts
         (let ((texts (mapcar
@@ -2489,7 +2504,7 @@ on the unchanged second sentence."
                         (buffer-substring-no-properties
                          (flymake-diagnostic-beg d)
                          (flymake-diagnostic-end d)))
-                      flywrite--diagnostics)))
+                      (flymake-diagnostics))))
           (should (member "Him" texts))
           (should (member "Her" texts))))
 
@@ -2540,7 +2555,7 @@ on the unchanged second sentence."
         (flywrite--after-change 1 (point-max) 0)
         (flywrite--idle-timer-fn (current-buffer))
         (should (= api-call-count 1))
-        (should (= (length flywrite--diagnostics) 2))
+        (should (= (length (flymake-diagnostics)) 2))
 
         ;; Fix "Him" -> "He"
         (goto-char 1)
@@ -2563,8 +2578,8 @@ on the unchanged second sentence."
         (should (= api-call-count 2))
 
         ;; Only one diagnostic remaining: "her"
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "her"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -2620,8 +2635,8 @@ on the unchanged second sentence."
 
         ;; Verify diagnostic
         (should (= api-call-count 1))
-        (should (= (length flywrite--diagnostics) 1))
-        (let ((diag (car flywrite--diagnostics)))
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
           (should (string= "Him"
                            (buffer-substring-no-properties
                             (flymake-diagnostic-beg diag)
@@ -2669,7 +2684,7 @@ on the unchanged second sentence."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; Should not crash, no diagnostics
-        (should (= (length flywrite--diagnostics) 0)))
+        (should (= (length (flymake-diagnostics)) 0)))
 
       (flywrite-mode -1))))
 
@@ -2706,7 +2721,7 @@ on the unchanged second sentence."
           (flywrite--idle-timer-fn (current-buffer))
 
           ;; Should not crash, no diagnostics
-          (should (= (length flywrite--diagnostics) 0))))
+          (should (= (length (flymake-diagnostics)) 0))))
 
       (flywrite-mode -1))))
 
@@ -2747,7 +2762,7 @@ on the unchanged second sentence."
         (flywrite--idle-timer-fn (current-buffer))
 
         ;; No diagnostic because quote doesn't match text
-        (should (= (length flywrite--diagnostics) 0)))
+        (should (= (length (flymake-diagnostics)) 0)))
 
       (flywrite-mode -1))))
 
@@ -2858,7 +2873,7 @@ on the unchanged second sentence."
         (flywrite--after-change 1 (point-max) 0)
         (flywrite--idle-timer-fn (current-buffer))
         (should (= api-call-count 1))
-        (should (= (length flywrite--diagnostics) 1))
+        (should (= (length (flymake-diagnostics)) 1))
 
         ;; The paragraph hash is now in checked-paragraphs.
         ;; A normal idle timer would skip it.
@@ -2873,7 +2888,7 @@ on the unchanged second sentence."
         (should (= api-call-count 2))
 
         ;; Diagnostic should still be present
-        (should (>= (length flywrite--diagnostics) 1)))
+        (should (>= (length (flymake-diagnostics)) 1)))
 
       (flywrite-mode -1))))
 

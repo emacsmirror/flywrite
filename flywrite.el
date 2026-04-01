@@ -948,8 +948,9 @@ the region content.  HASH is for logging."
                  buf diag-beg diag-end 'flywrite-diagnostic-type
                  (concat reason " [flywrite]"))
                 flywrite--diagnostics)
-          (flywrite--log "Diagnostic: [%s-%s] %s hash=%s"
-                         diag-beg diag-end reason hash))
+          (flywrite--log "Diagnostic: [%d-%d] %s hash=%s"
+                         (marker-position diag-beg)
+                         (marker-position diag-end) reason hash))
       (flywrite--log "Quote not found, skipping: %s hash=%s" quote-str hash))))
 
 
@@ -1057,15 +1058,25 @@ BUF is the buffer, BEG/END are bounds, HASH is the content hash,
 SEEN is a hash table for deduplication within this batch."
   ;; Guard: only proceed if bounds are valid, the hash hasn't already
   ;; been checked or seen in this batch, and the region is prose.
-  (when (and (<= end (point-max))
-             (>= beg (point-min))
-             (not (gethash hash flywrite--checked-paragraphs))
-             (not (gethash hash seen))
-             (or (not (flywrite--should-skip-p beg))
-                 (progn
-                   (flywrite--log "Skipped (non-prose region): [%d-%d] hash=%s"
-                                  beg end hash)
-                   nil)))
+  (cond
+   ((> end (point-max))
+    (flywrite--log
+     "Dispatch skip (end>max): [%d-%d] max=%d hash=%s"
+     beg end (point-max) hash))
+   ((< beg (point-min))
+    (flywrite--log
+     "Dispatch skip (beg<min): [%d-%d] min=%d hash=%s"
+     beg end (point-min) hash))
+   ((gethash hash flywrite--checked-paragraphs)
+    (flywrite--log "Dispatch skip (already checked): [%d-%d] hash=%s"
+                   beg end hash))
+   ((gethash hash seen)
+    (flywrite--log "Dispatch skip (duplicate in batch): [%d-%d] hash=%s"
+                   beg end hash))
+   ((flywrite--should-skip-p beg)
+    (flywrite--log "Skipped (non-prose region): [%d-%d] hash=%s"
+                   beg end hash))
+   (t
 
     ;; Record in batch-local SEEN table to deduplicate within this dispatch.
     (puthash hash t seen)
@@ -1078,7 +1089,7 @@ SEEN is a hash table for deduplication within this batch."
                      beg end flywrite--in-flight hash)
       (setq flywrite--pending-queue
             (append flywrite--pending-queue
-                    (list (list buf beg end hash)))))))
+                    (list (list buf beg end hash))))))))
 
 
 (defun flywrite--dispatch-dirty-registry (buf)
@@ -1102,6 +1113,9 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
       (when flywrite-mode
         (when flywrite-eager
           (flywrite--eager-scan))
+        (when flywrite--dirty-registry
+          (flywrite--log "Idle timer: %d dirty entries"
+                         (length flywrite--dirty-registry)))
         (flywrite--dispatch-dirty-registry buf)))))
 
 

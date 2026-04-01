@@ -1073,6 +1073,59 @@
       (flywrite-mode -1))))
 
 
+(ert-deftest flywrite-test-e2e-duplicate-quote-positions ()
+  "Two suggestions with identical quotes underline different occurrences."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      ;; "him" appears at pos 8-11 and pos 38-41
+      (insert "First, him went to the store. Later, him went to the park.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; LLM flags both occurrences of "him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "him")
+                             (reason . "Use \"he\" (subject pronoun)"))
+                            ((quote . "him")
+                             (reason
+                              . "Use \"he\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        (should (= (length flywrite--diagnostics) 2))
+        ;; Diagnostics are pushed (newest first), so reverse for order
+        (let ((diags (reverse flywrite--diagnostics)))
+          ;; First "him" at positions 8-11
+          (should (= (flymake-diagnostic-beg (nth 0 diags)) 8))
+          (should (= (flymake-diagnostic-end (nth 0 diags)) 11))
+          ;; Second "him" at positions 38-41
+          (should (= (flymake-diagnostic-beg (nth 1 diags)) 38))
+          (should (= (flymake-diagnostic-end (nth 1 diags)) 41))))
+
+      (flywrite-mode -1))))
+
+
 ;;;; ---- System prompt resolution ----
 
 

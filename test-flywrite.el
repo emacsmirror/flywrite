@@ -1334,6 +1334,100 @@ The inserted text is longer than the entire original paragraph."
       (flywrite-mode -1))))
 
 
+(ert-deftest flywrite-test-e2e-diagnostic-race-edit-before-response ()
+  "Diagnostic placed correctly when paragraph 1 is edited while API is
+in-flight for paragraph 2.  Paragraph 2 has two sentences: the first is
+correct, the second contains one error.  The response arrives after
+paragraph 1 changes length, so the original beg/end are stale."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         ;; Deferred callback: captured by the first url-retrieve call
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         ;; After the deferred call, switch to synchronous mode
+         (synchronous nil))
+    (with-temp-buffer
+      (text-mode)
+
+      ;; Two paragraphs.  P1 has no errors.  P2's second sentence
+      ;; has "Him" (should be "He").
+      (insert "The weather is nice today.\n\n"
+              "The sun is bright. Him went to the store.")
+
+      ;; Build the mock response once — flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason
+                            . "Use \"He\" (subject pronoun)"))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (if synchronous
+                         ;; Second call onwards: invoke callback immediately
+                         (progn
+                           (with-current-buffer resp-buf
+                             (goto-char (point-min))
+                             (funcall callback nil))
+                           resp-buf)
+                       ;; First call: capture callback for deferred invocation
+                       (setq deferred-callback callback
+                             deferred-resp-buf resp-buf)
+                       resp-buf)))))
+
+        (flywrite-mode 1)
+
+        ;; --- Step 1: Dirty only paragraph 2 ---
+        (let ((p2-beg (save-excursion
+                        (goto-char (point-min))
+                        (forward-paragraph)
+                        (skip-chars-forward "\n")
+                        (point)))
+              (p2-end (point-max)))
+          (flywrite--after-change p2-beg p2-end 0))
+
+        ;; --- Step 2: Dispatch request (callback is deferred) ---
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)
+
+        ;; --- Step 3: Edit paragraph 1 — length-changing replacement ---
+        ;; "nice" (4 chars) → "beautiful" (9 chars), +5 chars
+        (goto-char 1)
+        (search-forward "nice")
+        (replace-match "beautiful")
+
+        ;; --- Step 4: Now the deferred response arrives ---
+        ;; Switch to synchronous for re-check requests
+        (setq synchronous t)
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; The stale check should have re-dirtied paragraph 2.
+        ;; Fire idle timer to dispatch the re-check.
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 5: Verify one diagnostic underlining "Him" ---
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag))))))
+
+      (flywrite-mode -1))))
+
+
 ;;;; ---- System prompt resolution ----
 
 
@@ -1504,5 +1598,82 @@ The inserted text is longer than the entire original paragraph."
   (let ((flywrite-api-model nil)
         (flywrite-api-url nil))
     (should-error (flywrite--effective-model) :type 'error)))
+
+(ert-deftest flywrite-test-e2e-same-paragraph-edit-rechecks ()
+  "Edit sentence 1 clears diags, re-check restores diag on sentence 2.
+One paragraph, two sentences.  First sentence is correct, second has
+an error.  Editing the first sentence should clear all diagnostics
+in the paragraph, trigger a new API call, and restore the diagnostic
+on the unchanged second sentence."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (api-call-count 0)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      ;; One paragraph: correct first sentence, error in second
+      (insert "The weather is nice today.  Him went to the store.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him" in the second sentence
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Initial check ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 2: Verify one diagnostic underlines "Him" ---
+        (should (= api-call-count 1))
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag)))))
+
+        ;; --- Step 3: Edit the first sentence (same paragraph) ---
+        (goto-char 1)
+        (search-forward "nice")
+        (replace-match "beautiful")
+
+        ;; --- Step 4: All diagnostics in this paragraph should clear ---
+        (should (= (length flywrite--diagnostics) 0))
+
+        ;; --- Step 5: Re-check fires, same mock response ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 6: Verify second API call and diagnostic restored ---
+        (should (= api-call-count 2))
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag))))))
+
+      (flywrite-mode -1))))
 
 ;;; test-flywrite.el ends here

@@ -1428,6 +1428,264 @@ paragraph 1 changes length, so the original beg/end are stale."
       (flywrite-mode -1))))
 
 
+(ert-deftest flywrite-test-e2e-race-same-paragraph-edit ()
+  "Same-paragraph race: edit first sentence while API checks paragraph.
+One paragraph, two sentences.  First sentence correct, second has
+\"Him\".  Request dispatched, then first sentence edited (length
+change), then response arrives stale, re-check places diagnostic."
+  (let* ((flywrite-api-url
+          "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (synchronous nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "The weather is nice today.  "
+              "Him went to the store.")
+
+      ;; Mock response: flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason
+                            . "Use \"He\" as subject"))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback
+                               &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf
+                          (flywrite-test--make-response-buffer
+                           mock-response-json)))
+                     (if synchronous
+                         (progn
+                           (with-current-buffer resp-buf
+                             (goto-char (point-min))
+                             (funcall callback nil))
+                           resp-buf)
+                       (setq deferred-callback callback
+                             deferred-resp-buf resp-buf)
+                       resp-buf)))))
+
+        (flywrite-mode 1)
+
+        ;; --- Step 1: Dirty and dispatch (deferred) ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)
+
+        ;; --- Step 2: Edit first sentence (length change) ---
+        ;; "nice" (4) -> "beautiful" (9), +5 chars
+        (goto-char 1)
+        (search-forward "nice")
+        (replace-match "beautiful")
+
+        ;; --- Step 3: Deferred response arrives (stale) ---
+        (setq synchronous t)
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; --- Step 4: Re-check via idle timer ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 5: Verify diagnostic underlines "Him" ---
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should
+           (string= "Him"
+                    (buffer-substring-no-properties
+                     (flymake-diagnostic-beg diag)
+                     (flymake-diagnostic-end diag))))))
+
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-e2e-race-same-paragraph-fix ()
+  "Same-paragraph race: user fixes error while API is in-flight.
+The edit changes \"Him\" to \"He\" before the response arrives.
+Stale response is discarded, re-check finds no errors."
+  (let* ((flywrite-api-url
+          "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (synchronous nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "The weather is nice today.  "
+              "Him went to the store.")
+
+      ;; Initial mock: flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason
+                            . "Use \"He\" as subject"))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback
+                               &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf
+                          (flywrite-test--make-response-buffer
+                           mock-response-json)))
+                     (if synchronous
+                         (progn
+                           (with-current-buffer resp-buf
+                             (goto-char (point-min))
+                             (funcall callback nil))
+                           resp-buf)
+                       (setq deferred-callback callback
+                             deferred-resp-buf resp-buf)
+                       resp-buf)))))
+
+        (flywrite-mode 1)
+
+        ;; --- Step 1: Dirty and dispatch (deferred) ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)
+
+        ;; --- Step 2: Fix the error before response ---
+        (goto-char 1)
+        (search-forward "Him")
+        (replace-match "He")
+
+        ;; --- Step 3: Swap mock to empty suggestions ---
+        (let ((inner (json-encode
+                      '((suggestions . [])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 4: Deferred response arrives (stale) ---
+        (setq synchronous t)
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; --- Step 5: Re-check via idle timer ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 6: Verify no diagnostics ---
+        (should (= (length flywrite--diagnostics) 0)))
+
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-e2e-race-same-paragraph-new-error ()
+  "Same-paragraph race: user fixes one error but introduces another.
+\"Him went\" becomes \"He wented\" before the response arrives.
+Re-check flags \"wented\" instead of the original \"Him\"."
+  (let* ((flywrite-api-url
+          "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (synchronous nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "The weather is nice today.  "
+              "Him went to the store.")
+
+      ;; Initial mock: flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason
+                            . "Use \"He\" as subject"))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback
+                               &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf
+                          (flywrite-test--make-response-buffer
+                           mock-response-json)))
+                     (if synchronous
+                         (progn
+                           (with-current-buffer resp-buf
+                             (goto-char (point-min))
+                             (funcall callback nil))
+                           resp-buf)
+                       (setq deferred-callback callback
+                             deferred-resp-buf resp-buf)
+                       resp-buf)))))
+
+        (flywrite-mode 1)
+
+        ;; --- Step 1: Dirty and dispatch (deferred) ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)
+
+        ;; --- Step 2: Fix "Him" but introduce "wented" ---
+        (goto-char 1)
+        (search-forward "Him went")
+        (replace-match "He wented")
+
+        ;; --- Step 3: Swap mock to flag "wented" ---
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "wented")
+                             (reason
+                              . "Not a word; use \"went\"")
+                             )])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 4: Deferred response arrives (stale) ---
+        (setq synchronous t)
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; --- Step 5: Re-check via idle timer ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 6: Verify diagnostic underlines "wented" ---
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should
+           (string= "wented"
+                    (buffer-substring-no-properties
+                     (flymake-diagnostic-beg diag)
+                     (flymake-diagnostic-end diag))))))
+
+      (flywrite-mode -1))))
+
+
 ;;;; ---- System prompt resolution ----
 
 

@@ -2136,6 +2136,11 @@ on the unchanged second sentence."
                 . [((message
                      . ((content . ,inner))))])))))
 
+    ;; Pre-create the response buffer so kill-buffer can't destroy it
+    ;; (flywrite--disable kills connection-tracked buffers).
+    (setq deferred-resp-buf (flywrite-test--make-response-buffer
+                             mock-response-json))
+
     (setq source-buf (generate-new-buffer "*flywrite-test-killed*"))
     (with-current-buffer source-buf
       (text-mode)
@@ -2143,11 +2148,11 @@ on the unchanged second sentence."
 
       (cl-letf (((symbol-function 'url-retrieve)
                  (lambda (_url callback &optional _cbargs _silent _inhibit)
-                   (let ((resp-buf (flywrite-test--make-response-buffer
-                                    mock-response-json)))
-                     (setq deferred-callback callback
-                           deferred-resp-buf resp-buf)
-                     resp-buf))))
+                   (setq deferred-callback callback)
+                   ;; Return a dummy connection buffer (will be killed
+                   ;; on disable).  The real response buffer lives
+                   ;; outside connection tracking.
+                   (generate-new-buffer " *test-conn*"))))
 
         (flywrite-mode 1)
 
@@ -2193,13 +2198,15 @@ on the unchanged second sentence."
                   . [((message
                        . ((content . ,inner))))])))))
 
+      ;; Pre-create response buffer outside connection tracking
+      (setq deferred-resp-buf (flywrite-test--make-response-buffer
+                               mock-response-json))
+
       (cl-letf (((symbol-function 'url-retrieve)
                  (lambda (_url callback &optional _cbargs _silent _inhibit)
-                   (let ((resp-buf (flywrite-test--make-response-buffer
-                                    mock-response-json)))
-                     (setq deferred-callback callback
-                           deferred-resp-buf resp-buf)
-                     resp-buf))))
+                   (setq deferred-callback callback)
+                   ;; Return a dummy connection buffer
+                   (generate-new-buffer " *test-conn*"))))
 
         (flywrite-mode 1)
 
@@ -2224,7 +2231,9 @@ on the unchanged second sentence."
         ;; In-flight must not go negative
         (should (>= flywrite--in-flight 0)))
 
-      (flywrite-mode -1))))
+      (flywrite-mode -1)
+      (when (buffer-live-p deferred-resp-buf)
+        (kill-buffer deferred-resp-buf)))))
 
 
 ;;;; ---- Race condition: rapid edit-check-edit ----
@@ -2317,7 +2326,9 @@ on the unchanged second sentence."
          (flywrite-eager nil)
          (flywrite-max-concurrent 1)
          (api-call-count 0)
-         (mock-response-json nil))
+         (mock-response-json nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil))
     (with-temp-buffer
       (text-mode)
       (insert "First paragraph.\n\nSecond paragraph.")
@@ -2334,31 +2345,47 @@ on the unchanged second sentence."
                    (cl-incf api-call-count)
                    (let ((resp-buf (flywrite-test--make-response-buffer
                                     mock-response-json)))
-                     (with-current-buffer resp-buf
-                       (goto-char (point-min))
-                       (funcall callback nil))
+                     ;; Defer: capture callback, do not invoke yet
+                     (setq deferred-callback callback
+                           deferred-resp-buf resp-buf)
                      resp-buf))))
 
         (flywrite-mode 1)
 
-        ;; Dirty both paragraphs. With max-concurrent=1, only first
-        ;; dispatches; second is queued.
-        (flywrite--after-change 1 (point-max) 0)
+        ;; Manually set up the scenario: P2 dispatched (deferred),
+        ;; P1 is queued.  The dirty registry uses push so the last
+        ;; entry dispatches first; enqueue P1 first, then P2.
+        (let* ((p1-hash (flywrite--content-hash 1 17))
+               (p2-hash (flywrite--content-hash 19 36)))
+          ;; Queue P1 explicitly in the pending queue
+          (setq flywrite--pending-queue
+                (list (list (current-buffer) 1 17 p1-hash)))
+          ;; Mark P2 as dirty so it dispatches
+          (setq flywrite--dirty-registry
+                (list (list 19 36 p2-hash))))
+
+        ;; Dispatch: P2 sends (deferred), P1 stays queued.
         (flywrite--idle-timer-fn (current-buffer))
         (should (= api-call-count 1))
+        (should (= (length flywrite--pending-queue) 1))
 
-        ;; Edit the second paragraph while it's queued
-        (goto-char (point-max))
-        (insert " Edited.")
+        ;; Verify queued entry is P1 (beg=1)
+        (should (= (nth 1 (car flywrite--pending-queue)) 1))
 
-        ;; The first response completes and drains the queue.
-        ;; The queued entry for the second paragraph has a stale hash
-        ;; (paragraph was edited), so drain should skip it.
-        ;; api-call-count should still be 1 (no call for stale entry)
-        ;; OR 2 if the system re-hashes and sends anyway — either way
-        ;; verify no crash.
-        (should (>= api-call-count 1))
-        (should (>= flywrite--in-flight 0)))
+        ;; Edit P1 while it's queued
+        (goto-char 1)
+        (delete-region 1 6)
+        (insert "One")
+
+        ;; Complete P2's request — drain-queue fires and should
+        ;; skip P1 (its hash is now stale).
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; Drain should have skipped the stale P1 entry
+        (should (= api-call-count 1))
+        (should (= flywrite--in-flight 0)))
 
       (flywrite-mode -1))))
 
@@ -2426,7 +2453,7 @@ on the unchanged second sentence."
                        . ((content . ,inner))))])))))
 
       (cl-letf (((symbol-function 'url-retrieve)
-                 (lambda (url callback &optional _cbargs _silent _inhibit)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
                    (cl-incf api-call-count)
                    ;; Record the text sent in the request body
                    (push url-request-data api-call-texts)

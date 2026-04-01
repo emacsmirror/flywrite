@@ -411,14 +411,17 @@ FORMAT-STRING and ARGS are passed to `format'."
 (defun flywrite--try-collect-paragraph (ubeg uend seen)
   "Return a (ubeg uend hash) triple if paragraph UBEG..UEND should be collected.
 SEEN is a hash table of already-visited paragraph starts.  Returns nil
-if the paragraph is empty, duplicate, already checked, or in a skip region."
+if the paragraph is empty, duplicate, already checked, whitespace-only,
+or in a skip region."
   (when (and (> uend ubeg)
              (not (gethash ubeg seen)))
     (puthash ubeg t seen)
-    (let ((hash (flywrite--content-hash ubeg uend)))
-      (unless (or (gethash hash flywrite--checked-paragraphs)
-                  (flywrite--should-skip-p ubeg))
-        (list ubeg uend hash)))))
+    (unless (string-blank-p
+             (buffer-substring-no-properties ubeg uend))
+      (let ((hash (flywrite--content-hash ubeg uend)))
+        (unless (or (gethash hash flywrite--checked-paragraphs)
+                    (flywrite--should-skip-p ubeg))
+          (list ubeg uend hash))))))
 
 
 (defun flywrite--collect-paragraphs-in-region (beg end)
@@ -894,16 +897,40 @@ or nil if no text could be extracted.  Signals on malformed HTTP."
 When stale, removes the old hash and re-dirties the paragraph."
   ;; The text may have changed while the API call was in-flight.
   ;; Detect this via hash mismatch and re-dirty instead of applying.
-  (when (or (> end (point-max))
-            (< beg (point-min))
-            (not (string= hash (flywrite--content-hash beg end))))
-    (flywrite--log "Stale response discarded: [%d-%d] hash=%s" beg end hash)
-    (remhash hash flywrite--checked-paragraphs)
-    (let ((new-hash (when (and (<= beg (point-max)) (<= end (point-max)))
-                      (flywrite--content-hash beg end))))
-      (when (and new-hash (not (gethash new-hash flywrite--checked-paragraphs)))
-        (push (list beg end new-hash) flywrite--dirty-registry)))
-    t))
+  ;; Also check whether the original bounds still match paragraph
+  ;; boundaries — an append at point-max keeps end valid but the
+  ;; paragraph is now larger, making the old beg..end region stale.
+  (let* ((oob (or (> end (point-max)) (< beg (point-min))))
+         (hash-mismatch (and (not oob)
+                             (not (string= hash
+                                           (flywrite--content-hash
+                                            beg end)))))
+         (bounds-shifted
+          (and (not oob) (not hash-mismatch)
+               (let ((bounds (flywrite--paragraph-bounds-at-pos beg)))
+                 ;; Only flag as stale when beg is still a paragraph
+                 ;; start but the paragraph end moved (e.g., text
+                 ;; appended).  When beg itself is mid-paragraph,
+                 ;; positions are stale from a prior re-dirty and
+                 ;; should not trigger another stale cycle.
+                 (and (= (car bounds) beg)
+                      (/= (cdr bounds) end))))))
+    (when (or oob hash-mismatch bounds-shifted)
+      (flywrite--log "Stale response discarded: [%d-%d] hash=%s"
+                     beg end hash)
+      (remhash hash flywrite--checked-paragraphs)
+      (unless oob
+        (let* ((use-bounds (and bounds-shifted
+                                (let ((b (flywrite--paragraph-bounds-at-pos
+                                          beg)))
+                                  (when (> (cdr b) (car b)) b))))
+               (nbeg (if use-bounds (car use-bounds) beg))
+               (nend (if use-bounds (cdr use-bounds) end))
+               (new-hash (flywrite--content-hash nbeg nend)))
+          (when (not (gethash new-hash flywrite--checked-paragraphs))
+            (push (list nbeg nend new-hash)
+                  flywrite--dirty-registry))))
+      t)))
 
 
 (defun flywrite--parse-response-json (text)
@@ -1121,6 +1148,9 @@ SEEN is a hash table for deduplication within this batch."
    ((flywrite--should-skip-p beg)
     (flywrite--log "Skipped (non-prose region): [%d-%d] hash=%s"
                    beg end hash))
+   ((string-blank-p (buffer-substring-no-properties beg end))
+    (flywrite--log "Skipped (whitespace-only): [%d-%d] hash=%s"
+                   beg end hash))
    (t
 
     ;; Record in batch-local SEEN table to deduplicate within this dispatch.
@@ -1177,11 +1207,23 @@ Snapshots and clears the dirty registry, dispatches or queues requests."
            (end (nth 2 entry))
            (hash (nth 3 entry)))
       (when (and (buffer-live-p buf)
-                 (<= end (with-current-buffer buf (point-max)))
-                 (not (gethash hash (buffer-local-value
-                                     'flywrite--checked-paragraphs buf))))
-        (flywrite--log "Draining queue: [%d-%d] hash=%s" beg end hash)
-        (flywrite--send-request buf beg end hash)))))
+                 (<= end (with-current-buffer buf (point-max))))
+        (let ((current-hash (with-current-buffer buf
+                              (flywrite--content-hash beg end))))
+          (cond
+           ((not (string= hash current-hash))
+            (flywrite--log
+             "Drain skip (stale): [%d-%d] hash=%s cur=%s"
+             beg end hash current-hash))
+           ((gethash hash (buffer-local-value
+                           'flywrite--checked-paragraphs buf))
+            (flywrite--log
+             "Drain skip (checked): [%d-%d] hash=%s"
+             beg end hash))
+           (t
+            (flywrite--log
+             "Draining queue: [%d-%d] hash=%s" beg end hash)
+            (flywrite--send-request buf beg end hash))))))))
 
 
 ;;;; ---- Flymake backend ----

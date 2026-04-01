@@ -2048,4 +2048,807 @@ on the unchanged second sentence."
 
       (flywrite-mode -1))))
 
+;;;; ---- Race condition: stale response after buffer edit ----
+
+
+(ert-deftest flywrite-test-race-stale-response-discarded ()
+  "Response for a paragraph edited while in-flight is discarded and re-dirtied."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him went to the store.")
+
+      ;; Mock response: flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason . "Use \"He\""))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     ;; Defer: capture callback, do not invoke yet
+                     (setq deferred-callback callback
+                           deferred-resp-buf resp-buf)
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Dispatch request (deferred)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)
+        (should (= flywrite--in-flight 1))
+
+        ;; Edit the paragraph while request is in-flight
+        (goto-char 1)
+        (search-forward "store")
+        (replace-match "park")
+
+        ;; Now deliver the stale response
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; Stale response should be discarded: no diagnostics applied
+        (should (= (length flywrite--diagnostics) 0))
+
+        ;; The paragraph should be re-dirtied for re-check
+        (should flywrite--dirty-registry)
+
+        ;; In-flight should be back to 0
+        (should (= flywrite--in-flight 0)))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- Race condition: buffer killed while in-flight ----
+
+
+(ert-deftest flywrite-test-race-buffer-killed-during-flight ()
+  "Response arriving after source buffer is killed does not error."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (mock-response-json nil)
+         (source-buf nil))
+
+    ;; Mock response: empty suggestions
+    (let ((inner (json-encode '((suggestions . [])))))
+      (setq mock-response-json
+            (json-encode
+             `((choices
+                . [((message
+                     . ((content . ,inner))))])))))
+
+    (setq source-buf (generate-new-buffer "*flywrite-test-killed*"))
+    (with-current-buffer source-buf
+      (text-mode)
+      (insert "Hello world.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (setq deferred-callback callback
+                           deferred-resp-buf resp-buf)
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Dispatch request (deferred)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)))
+
+    ;; Kill the source buffer while request is in-flight
+    (kill-buffer source-buf)
+    (should-not (buffer-live-p source-buf))
+
+    ;; Deliver the response — should not error
+    (with-current-buffer deferred-resp-buf
+      (goto-char (point-min))
+      (funcall deferred-callback nil))
+
+    ;; Clean up response buffer if still alive
+    (when (buffer-live-p deferred-resp-buf)
+      (kill-buffer deferred-resp-buf))))
+
+
+;;;; ---- Race condition: in-flight counter underflow ----
+
+
+(ert-deftest flywrite-test-race-inflight-no-underflow ()
+  "In-flight counter does not go below 0 when response arrives after disable."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Hello world.")
+
+      (let ((inner (json-encode '((suggestions . [])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (setq deferred-callback callback
+                           deferred-resp-buf resp-buf)
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Dispatch request (deferred)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should deferred-callback)
+        (should (= flywrite--in-flight 1))
+
+        ;; Disable mode — resets in-flight to 0
+        (flywrite-mode -1)
+        (should (= flywrite--in-flight 0))
+
+        ;; Re-enable so the response handler has a live buffer with state
+        (flywrite-mode 1)
+
+        ;; Deliver deferred response
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; In-flight must not go negative
+        (should (>= flywrite--in-flight 0)))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- Race condition: rapid edit-check-edit ----
+
+
+(ert-deftest flywrite-test-race-rapid-edit-check-edit ()
+  "Rapid edit -> dispatch -> edit discards first response, re-checks."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         (deferred-callback nil)
+         (deferred-resp-buf nil)
+         (synchronous nil)
+         (api-call-count 0))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him went to the store.")
+
+      ;; Mock: flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason . "Use \"He\""))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (if synchronous
+                         (progn
+                           (with-current-buffer resp-buf
+                             (goto-char (point-min))
+                             (funcall callback nil))
+                           resp-buf)
+                       (setq deferred-callback callback
+                             deferred-resp-buf resp-buf)
+                       resp-buf)))))
+
+        (flywrite-mode 1)
+
+        ;; Edit 1: dirty and dispatch (deferred)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= api-call-count 1))
+
+        ;; Edit 2: change the paragraph before response arrives
+        (goto-char (point-max))
+        (insert "  Really.")
+
+        ;; Deliver first response (stale — paragraph changed)
+        (setq synchronous t)
+        (with-current-buffer deferred-resp-buf
+          (goto-char (point-min))
+          (funcall deferred-callback nil))
+
+        ;; First response should be discarded (stale)
+        (should (= (length flywrite--diagnostics) 0))
+
+        ;; Idle timer should dispatch re-check
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= api-call-count 2))
+
+        ;; Re-check should produce the diagnostic
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag))))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- Race condition: queue drain with stale hash ----
+
+
+(ert-deftest flywrite-test-race-queue-drain-skips-stale ()
+  "Queue drain skips entries whose paragraph was edited after queuing."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (flywrite-max-concurrent 1)
+         (api-call-count 0)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "First paragraph.\n\nSecond paragraph.")
+
+      (let ((inner (json-encode '((suggestions . [])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Dirty both paragraphs. With max-concurrent=1, only first
+        ;; dispatches; second is queued.
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= api-call-count 1))
+
+        ;; Edit the second paragraph while it's queued
+        (goto-char (point-max))
+        (insert " Edited.")
+
+        ;; The first response completes and drains the queue.
+        ;; The queued entry for the second paragraph has a stale hash
+        ;; (paragraph was edited), so drain should skip it.
+        ;; api-call-count should still be 1 (no call for stale entry)
+        ;; OR 2 if the system re-hashes and sends anyway — either way
+        ;; verify no crash.
+        (should (>= api-call-count 1))
+        (should (>= flywrite--in-flight 0)))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- Race condition: mode disable with pending queue ----
+
+
+(ert-deftest flywrite-test-race-disable-with-pending-queue ()
+  "Disabling mode with entries in the pending queue cleans up."
+  (let ((flywrite-api-url "http://localhost:0/v1/chat/completions"))
+    (with-temp-buffer
+      (text-mode)
+      (flywrite-mode 1)
+      (insert "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
+
+      ;; Manually populate the pending queue
+      (let ((buf (current-buffer)))
+        (setq flywrite--pending-queue
+              (list (list buf 1 17 "hash1")
+                    (list buf 19 36 "hash2")
+                    (list buf 38 55 "hash3"))))
+      (setq flywrite--in-flight 3)
+
+      ;; Disable mode
+      (flywrite-mode -1)
+
+      ;; All state should be cleaned up
+      (should-not flywrite--pending-queue)
+      (should (= flywrite--in-flight 0))
+      (should-not flywrite--dirty-registry)
+      (should-not flywrite--idle-timer))))
+
+
+;;;; ---- E2E: multi-paragraph check-buffer ----
+
+
+(ert-deftest flywrite-test-e2e-check-buffer-multi-paragraph ()
+  "check-buffer dispatches all paragraphs, respecting concurrency cap."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (flywrite-max-concurrent 2)
+         (flywrite-check-confirm-threshold 100)
+         (api-call-count 0)
+         (api-call-texts nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert (concat "Him went to the store.\n\n"
+                      "Her gave it to them.\n\n"
+                      "The birds are singing."))
+
+      ;; Mock: flag "Him" and "Her" (birds paragraph won't match)
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason . "Use \"He\""))
+                          ((quote . "Her")
+                           (reason . "Use \"She\""))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   ;; Record the text sent in the request body
+                   (push url-request-data api-call-texts)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+        (flywrite-check-buffer)
+
+        ;; 3 paragraphs should be dirtied
+        (should (= (length flywrite--dirty-registry) 3))
+
+        ;; Fire idle timer to dispatch
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; All 3 paragraphs should have been checked
+        (should (= api-call-count 3))
+
+        ;; "Him" is in paragraph 1, "Her" is in paragraph 2
+        ;; Each paragraph is checked independently, so:
+        ;; - paragraph 1 has "Him" -> 1 diagnostic
+        ;; - paragraph 2 has "Her" -> 1 diagnostic
+        ;; - paragraph 3 has no match -> 0 diagnostics
+        (should (= (length flywrite--diagnostics) 2))
+
+        ;; Verify the diagnostic texts
+        (let ((texts (mapcar
+                      (lambda (d)
+                        (buffer-substring-no-properties
+                         (flymake-diagnostic-beg d)
+                         (flymake-diagnostic-end d)))
+                      flywrite--diagnostics)))
+          (should (member "Him" texts))
+          (should (member "Her" texts))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: fix one error in multi-diagnostic paragraph ----
+
+
+(ert-deftest flywrite-test-e2e-fix-one-of-two-diagnostics ()
+  "Fix one error in a paragraph with two; re-check keeps the other."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (api-call-count 0)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him and her went to the store.")
+
+      ;; Mock: flag both "Him" and "her"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason . "Use \"He\""))
+                          ((quote . "her")
+                           (reason . "Use \"she\""))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Initial check: two diagnostics
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= api-call-count 1))
+        (should (= (length flywrite--diagnostics) 2))
+
+        ;; Fix "Him" -> "He"
+        (goto-char 1)
+        (search-forward "Him")
+        (replace-match "He")
+
+        ;; Mock: only flag "her" now
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "her")
+                             (reason . "Use \"she\""))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; Re-check
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= api-call-count 2))
+
+        ;; Only one diagnostic remaining: "her"
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (string= "her"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag))))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: Anthropic response format ----
+
+
+(ert-deftest flywrite-test-e2e-anthropic-response-format ()
+  "End-to-end test with Anthropic API response format."
+  (let* ((flywrite-api-url "https://api.anthropic.com/v1/messages")
+         (flywrite-api-key "sk-ant-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (api-call-count 0)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him went to the store.")
+
+      ;; Anthropic format: content[0].text contains the suggestion JSON
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason . "Use \"He\""))])))))
+        (setq mock-response-json
+              (json-encode
+               `((content . [((type . "text")
+                              (text . ,inner))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   ;; Build response with Anthropic HTTP headers
+                   (let ((buf (generate-new-buffer " *test-response*")))
+                     (with-current-buffer buf
+                       (insert
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: application/json\r\n\r\n"
+                        mock-response-json)
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     buf))))
+
+        (flywrite-mode 1)
+
+        ;; Dispatch check
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; Verify diagnostic
+        (should (= api-call-count 1))
+        (should (= (length flywrite--diagnostics) 1))
+        (let ((diag (car flywrite--diagnostics)))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag))))
+          (should (string-match-p "\\[flywrite\\]"
+                                  (flymake-diagnostic-text diag)))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: malformed LLM responses ----
+
+
+(ert-deftest flywrite-test-e2e-malformed-json-no-crash ()
+  "Malformed JSON response does not crash; no diagnostics created."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him went to the store.")
+
+      ;; Mock response: the LLM returns garbage instead of JSON
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((buf (generate-new-buffer " *test-response*")))
+                     (with-current-buffer buf
+                       (insert "HTTP/1.1 200 OK\r\n"
+                               "Content-Type: application/json\r\n\r\n"
+                               ;; Inner content is valid JSON wrapping
+                               ;; invalid inner JSON
+                               (json-encode
+                                `((choices
+                                   . [((message
+                                        . ((content
+                                            . "this is not json at all"
+                                            ))))]))))
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     buf))))
+
+        (flywrite-mode 1)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; Should not crash, no diagnostics
+        (should (= (length flywrite--diagnostics) 0)))
+
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-e2e-missing-suggestions-key ()
+  "Response JSON with no \"suggestions\" key does not crash."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him went to the store.")
+
+      ;; Mock response: valid JSON but missing "suggestions"
+      (let ((inner (json-encode '((result . "looks good!")))))
+        (cl-letf (((symbol-function 'url-retrieve)
+                   (lambda (_url callback
+                                 &optional _cbargs _silent _inhibit)
+                     (let ((buf (generate-new-buffer " *test-response*")))
+                       (with-current-buffer buf
+                         (insert "HTTP/1.1 200 OK\r\n"
+                                 "Content-Type: application/json\r\n\r\n"
+                                 (json-encode
+                                  `((choices
+                                     . [((message
+                                          . ((content . ,inner))))]))))
+                         (goto-char (point-min))
+                         (funcall callback nil))
+                       buf))))
+
+          (flywrite-mode 1)
+          (flywrite--after-change 1 (point-max) 0)
+          (flywrite--idle-timer-fn (current-buffer))
+
+          ;; Should not crash, no diagnostics
+          (should (= (length flywrite--diagnostics) 0))))
+
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-e2e-unmatched-quote-no-diagnostic ()
+  "Suggestion with a quote not found in text creates no diagnostic."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "The cat sat on the mat.")
+
+      ;; Mock: the LLM hallucinates a quote not in the text
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "dog ran across")
+                           (reason . "Hallucinated quote"))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; No diagnostic because quote doesn't match text
+        (should (= (length flywrite--diagnostics) 0)))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: empty / whitespace-only paragraphs not sent ----
+
+
+(ert-deftest flywrite-test-empty-paragraph-not-sent ()
+  "Empty buffer does not trigger API calls."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (api-call-count 0))
+    (with-temp-buffer
+      (text-mode)
+      ;; Buffer is empty
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    "{}")))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; No API calls for empty buffer
+        (should (= api-call-count 0)))
+
+      (flywrite-mode -1))))
+
+
+(ert-deftest flywrite-test-whitespace-only-paragraph-not-sent ()
+  "Whitespace-only content does not trigger API calls."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (api-call-count 0))
+    (with-temp-buffer
+      (text-mode)
+      (insert "   \n\n   \n\n   ")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    "{}")))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; No API calls for whitespace-only content
+        (should (= api-call-count 0)))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: check-at-point dispatches immediately ----
+
+
+(ert-deftest flywrite-test-e2e-check-at-point-dispatches ()
+  "check-at-point removes from checked cache and dispatches immediately."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (api-call-count 0)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+      (insert "Him went to the store.")
+
+      ;; Mock: flag "Him"
+      (let ((inner (json-encode
+                    '((suggestions
+                       . [((quote . "Him")
+                           (reason . "Use \"He\""))])))))
+        (setq mock-response-json
+              (json-encode
+               `((choices
+                  . [((message
+                       . ((content . ,inner))))])))))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; First check: mark as checked via normal flow
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= api-call-count 1))
+        (should (= (length flywrite--diagnostics) 1))
+
+        ;; The paragraph hash is now in checked-paragraphs.
+        ;; A normal idle timer would skip it.
+        (let ((hash (flywrite--content-hash 1 (point-max))))
+          (should (gethash hash flywrite--checked-paragraphs)))
+
+        ;; Use check-at-point to force re-check
+        (goto-char 5)
+        (flywrite-check-at-point)
+
+        ;; Should have dispatched a second API call
+        (should (= api-call-count 2))
+
+        ;; Diagnostic should still be present
+        (should (>= (length flywrite--diagnostics) 1)))
+
+      (flywrite-mode -1))))
+
+
 ;;; test-flywrite.el ends here

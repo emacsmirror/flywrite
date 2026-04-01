@@ -7,6 +7,12 @@ set -Eeuo pipefail
 # Run from project directory
 cd "$(dirname "$0")"
 
+# Clean up automatically generated files on exit
+cleanup() {
+  rm -f ./*.elc flywrite-autoloads.el
+}
+trap cleanup EXIT
+
 # Emacs Lisp source files
 EL_FILE_PACKAGE=flywrite.el
 EL_FILES_TESTS=(
@@ -154,9 +160,6 @@ if [ "${README_SYSTEM_PROMPT#"${FLYWRITE_SYSTEM_PROMPT}"}" = "${README_SYSTEM_PR
   echo "Error: README system prompt does not start with flywrite.el prompt" >&2
   exit 1
 fi
-
-# Clean up
-rm -f ./*.elc
 
 echo "########################################"
 echo "# $0 PASS"

@@ -2973,4 +2973,391 @@ verify diagnostic persists, undo, verify diagnostic persists."
       (flywrite-mode -1))))
 
 
+;;;; ---- E2E: delete paragraph bearing the diagnostic ----
+
+
+(ert-deftest flywrite-test-e2e-delete-diagnostic-paragraph ()
+  "Deleting the paragraph that has the diagnostic clears it.
+Para 1 has \"Him\" (error), para 2 is clean.  Delete para 1.
+Diagnostic must be gone — the fix must not over-preserve."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "Him went to the store.\n\nThe weather is nice today.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check all paragraphs ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 2: Verify one diagnostic underlining "Him" ---
+        (should (= (length (flymake-diagnostics)) 1))
+
+        ;; --- Step 3: Delete paragraph 1 (the one with the error) ---
+        (goto-char 1)
+        (search-forward "\n\n")
+        (delete-region 1 (point))
+
+        ;; --- Step 4: Re-check; diagnostic should be gone ---
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= (length (flymake-diagnostics)) 0)))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: delete error paragraph, clean paragraph unaffected ----
+
+
+(ert-deftest flywrite-test-e2e-delete-error-para-clean-para-unaffected ()
+  "After deleting para 1 (error), para 2 (clean) is checked normally.
+No stale diagnostics linger on para 2."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         (api-call-count 0))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "Him went to the store.\n\nThe weather is nice today.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him" (won't match para 2)
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check all paragraphs ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= (length (flymake-diagnostics)) 1))
+
+        ;; --- Step 2: Delete paragraph 1 (includes trailing blank line) ---
+        (goto-char 1)
+        (search-forward "\n\n")
+        (delete-region 1 (point))
+
+        ;; --- Step 3: Re-check ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 4: No diagnostics should remain ---
+        ;; "Him" is gone; para 2 has no errors.
+        (should (= (length (flymake-diagnostics)) 0))
+
+        ;; Buffer should just be the clean paragraph
+        (should (string= "The weather is nice today."
+                         (buffer-substring-no-properties
+                          1 (point-max)))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: three paragraphs, delete middle ----
+
+
+(ert-deftest flywrite-test-e2e-three-paras-delete-middle ()
+  "Diagnostics on para 1 and para 3 survive deleting clean para 2.
+Three paragraphs: para 1 has \"Him\", para 2 clean, para 3 has \"Him\"."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert (concat "Him went to the store.\n\n"
+                      "The weather is nice today.\n\n"
+                      "Him ran down the street."))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check all paragraphs ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 2: Two diagnostics, both "Him" ---
+        (should (= (length (flymake-diagnostics)) 2))
+        (dolist (diag (flymake-diagnostics))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag)))))
+
+        ;; --- Step 3: Delete middle paragraph (para 2) ---
+        ;; Find start of para 2 and end of para 2 (including blank lines).
+        (goto-char 1)
+        (search-forward "store.")
+        (let ((del-start (point)))
+          (search-forward "Him ran")
+          (goto-char (match-beginning 0))
+          (delete-region del-start (point)))
+
+        ;; --- Step 4: Re-check; both diagnostics should survive ---
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= (length (flymake-diagnostics)) 2))
+        (dolist (diag (flymake-diagnostics))
+          (should (string= "Him"
+                           (flywrite-test--diag-text-at-overlay diag)))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: merge paragraphs by deleting separator ----
+
+
+(ert-deftest flywrite-test-e2e-merge-paragraphs-delete-separator ()
+  "Deleting the blank-line separator merges two paragraphs.
+Para 1 has \"Him\" (error), para 2 is clean.  Delete the separator.
+Merged paragraph has new content, so it should be re-dirtied and
+re-checked."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "Him went to the store.\n\nThe weather is nice today.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check all paragraphs ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= (length (flymake-diagnostics)) 1))
+
+        ;; --- Step 2: Delete the blank-line separator "\n\n" ---
+        (goto-char 1)
+        (search-forward "store.")
+        (let ((sep-start (point)))
+          (search-forward "The")
+          (goto-char (match-beginning 0))
+          (delete-region sep-start (point)))
+        ;; Buffer is now one paragraph:
+        ;; "Him went to the store.The weather is nice today."
+
+        ;; --- Step 3: Re-check ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 4: Merged paragraph should still have "Him" diagnostic ---
+        ;; The merged paragraph has new content (new hash), so it was
+        ;; re-dirtied and re-checked.  "Him" still appears in the text.
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
+          (should (string= "Him"
+                           (flywrite-test--diag-text-at-overlay diag)))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: insert new paragraph above diagnostic ----
+
+
+(ert-deftest flywrite-test-e2e-insert-paragraph-above-diagnostic ()
+  "Diagnostic on para 1 survives inserting a new paragraph above it.
+Para 1 has \"Him\" (error).  Insert a new clean paragraph before it.
+Diagnostic should survive — para 1 content is unchanged, just shifted."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "Him went to the store.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check paragraph ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= (length (flymake-diagnostics)) 1))
+
+        ;; --- Step 2: Insert a new paragraph above ---
+        (goto-char 1)
+        (insert "The weather is nice today.\n\n")
+
+        ;; --- Step 3: Re-check ---
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 4: Diagnostic should still underline "Him" ---
+        (should (= (length (flymake-diagnostics)) 1))
+        (let ((diag (car (flymake-diagnostics))))
+          (should (string= "Him"
+                           (flywrite-test--diag-text-at-overlay diag)))))
+
+      (flywrite-mode -1))))
+
+
+;;;; ---- E2E: replace entire buffer clears diagnostics ----
+
+
+(ert-deftest flywrite-test-e2e-replace-entire-buffer ()
+  "Replacing the entire buffer clears old diagnostics.
+Para 1 has \"Him\" (error).  Replace all text with clean content.
+Old diagnostic must be gone, not preserved."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert "Him went to the store.")
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check paragraph ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+        (should (= (length (flymake-diagnostics)) 1))
+
+        ;; --- Step 2: Replace entire buffer with clean text ---
+        (erase-buffer)
+        (insert "The weather is nice today.")
+
+        ;; --- Step 3: Re-check ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; --- Step 4: No diagnostics — "Him" is gone ---
+        (should (= (length (flymake-diagnostics)) 0)))
+
+      (flywrite-mode -1))))
+
+
 ;;; test-flywrite.el ends here

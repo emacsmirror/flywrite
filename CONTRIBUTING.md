@@ -138,7 +138,7 @@ LLM API  (url-retrieve, async)
 Response handler
     |  stale check (hash comparison)
     v
-Flymake report  ->  diagnostics (:note severity)
+Flymake report  ->  diagnostics (:note severity, :region scoped)
     |
     v
 flymake-popon / echo area  ->  inline popups near flagged text
@@ -151,7 +151,10 @@ Key design decisions:
 - **Stale response guard**: responses discarded if paragraph changed
   while call was in-flight, then re-dirtied for re-check
 - **Flymake backend**: `flywrite-flymake` registered in
-  `flymake-diagnostic-functions`; handles eglot coexistence by
+  `flymake-diagnostic-functions`; reports diagnostics per-paragraph
+  using flymake's `:region` parameter so each API response only
+  replaces diagnostics for its own paragraph region — flymake owns
+  the full diagnostic lifecycle.  Handles eglot coexistence by
   re-adding itself via `eglot-managed-mode-hook`
 - **Prompt caching**: system prompt uses `cache_control` with
   `"type": "ephemeral"` for cost reduction

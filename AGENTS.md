@@ -67,7 +67,7 @@ LLM API  (url-retrieve, async)
 Response handler
     │  stale check (hash comparison)
     ▼
-Flymake report  →  diagnostics (:note severity)
+Flymake report  →  diagnostics (:note severity, :region scoped)
     │
     ▼
 flymake-popon / echo area  →  inline popups near flagged text
@@ -77,7 +77,7 @@ Key design decisions:
 - **Paragraph granularity**: a paragraph is the text sent per API call
 - **Content deduplication**: MD5 hashing prevents redundant API calls; checked hashes stored in `flywrite--checked-paragraphs` hash table
 - **Stale response guard**: responses discarded if paragraph changed while call was in-flight, then re-dirtied for re-check
-- **Flymake backend**: `flywrite-flymake` registered in `flymake-diagnostic-functions`; handles eglot coexistence by re-adding itself via `eglot-managed-mode-hook`
+- **Flymake backend**: `flywrite-flymake` registered in `flymake-diagnostic-functions`; reports diagnostics per-paragraph using flymake's `:region` parameter so each API response only replaces diagnostics for its own paragraph region — flymake owns the full diagnostic lifecycle.  Handles eglot coexistence by re-adding itself via `eglot-managed-mode-hook`
 - **Prompt caching**: system prompt uses `cache_control` with `"type": "ephemeral"` for cost reduction
 - **Mode-aware suppression**: skips code blocks, comments, and other non-prose regions via font-lock face inspection
 - **Multi-provider support**: Anthropic endpoints are auto-detected (use `x-api-key` header); all others use `Bearer` token in `Authorization` header
@@ -86,7 +86,7 @@ Key design decisions:
 ## Emacs Lisp Conventions
 
 - All async HTTP via `url-retrieve` (no external dependencies)
-- All state is buffer-local (dirty registry, checked-paragraphs hash table, in-flight counter, pending queue, report-fn)
+- All state is buffer-local (dirty registry, checked-paragraphs hash table, in-flight counter, pending queue, report-fn); flymake owns the diagnostic overlays
 - Package prefix: `flywrite-` (public), `flywrite--` (internal)
 - No default keybindings; commands available via `M-x`
 - Diagnostics are tagged with `[flywrite]` suffix in messages

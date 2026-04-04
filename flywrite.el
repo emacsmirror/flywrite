@@ -498,37 +498,37 @@ Checks font-lock faces and major mode."
                (string= hash
                         (or (gethash region-key flywrite--region-hashes)
                             "")))
-      (cl-return-from flywrite--process-changed-paragraph))
-    ;; Paragraph is new or has moved — uncache so dispatch re-checks it.
-    (remhash hash flywrite--checked-paragraphs)
-    (when flywrite--report-fn
-      (funcall flywrite--report-fn nil :region (cons ubeg uend)))
-    (flywrite--update-region-hash ubeg uend hash)
+      (cl-return-from flywrite--process-changed-paragraph)))
+  ;; Paragraph is new or has moved — uncache so dispatch re-checks it.
+  (remhash hash flywrite--checked-paragraphs)
+  (when flywrite--report-fn
+    (funcall flywrite--report-fn nil :region (cons ubeg uend)))
+  (flywrite--update-region-hash ubeg uend hash)
 
-    ;; Remove stale pending queue entries for this region
-    (setq flywrite--pending-queue
-          (cl-remove-if (lambda (entry)
-                          (and (eq (nth 0 entry) (current-buffer))
-                               (<= (nth 1 entry) uend)
-                               (>= (nth 2 entry) ubeg)))
-                        flywrite--pending-queue))
+  ;; Remove stale pending queue entries for this region
+  (setq flywrite--pending-queue
+        (cl-remove-if (lambda (entry)
+                        (and (eq (nth 0 entry) (current-buffer))
+                             (<= (nth 1 entry) uend)
+                             (>= (nth 2 entry) ubeg)))
+                      flywrite--pending-queue))
 
-    ;; Remove any existing dirty entry for overlapping region
-    (setq flywrite--dirty-registry
-          (cl-remove-if (lambda (entry)
-                          (and (<= (nth 0 entry) uend)
-                               (>= (nth 1 entry) ubeg)))
-                        flywrite--dirty-registry))
+  ;; Remove any existing dirty entry for overlapping region
+  (setq flywrite--dirty-registry
+        (cl-remove-if (lambda (entry)
+                        (and (<= (nth 0 entry) uend)
+                             (>= (nth 1 entry) ubeg)))
+                      flywrite--dirty-registry))
 
-    ;; Add new dirty entry
-    (push (list ubeg uend hash) flywrite--dirty-registry)
-    (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
-                   ubeg uend hash
-                   (length flywrite--dirty-registry)
-                   (truncate-string-to-width
-                    (string-trim
-                     (buffer-substring-no-properties ubeg uend))
-                    80 nil nil t))))
+  ;; Add new dirty entry
+  (push (list ubeg uend hash) flywrite--dirty-registry)
+  (flywrite--log "Dirty: [%d-%d] hash=%s queue=%d text=%S"
+                 ubeg uend hash
+                 (length flywrite--dirty-registry)
+                 (truncate-string-to-width
+                  (string-trim
+                   (buffer-substring-no-properties ubeg uend))
+                  80 nil nil t)))
 
 
 (defun flywrite--paragraph-after-pos (pos)
@@ -541,6 +541,19 @@ the last paragraph."
                  (point))))
     (when (< probe (point-max))
       (flywrite--paragraph-bounds-at-pos probe))))
+
+
+(defun flywrite--paragraph-needs-check-p (pbeg pend hash cbeg cend)
+  "Return non-nil if paragraph PBEG..PEND with HASH needs re-checking.
+CBEG..CEND is the changed region.  A paragraph is skipped when its
+content hash is already checked and the change is entirely outside
+its text (whitespace-only edit in a paragraph separator).
+For deletions (CBEG = CEND) boundary-adjacent changes are also
+considered outside the paragraph."
+  (not (and (gethash hash flywrite--checked-paragraphs)
+            (if (= cbeg cend)
+                (or (<= cend pbeg) (>= cbeg pend))
+              (or (< cend pbeg) (> cbeg pend))))))
 
 
 (defun flywrite--after-change (beg end _len)
@@ -560,6 +573,18 @@ BEG and END are the changed region boundaries."
                   (flywrite--paragraph-after-pos end)))
                (paras (delete-dups
                        (delq nil (list bounds1 bounds2 bounds3)))))
+
+          ;; Filter out paragraphs whose content is unchanged and whose
+          ;; text does not overlap the edited region (whitespace-only
+          ;; edits in paragraph separators).
+          (setq paras
+                (cl-remove-if-not
+                 (lambda (b)
+                   (flywrite--paragraph-needs-check-p
+                    (car b) (cdr b)
+                    (flywrite--content-hash (car b) (cdr b))
+                    beg end))
+                 paras))
 
           ;; An edit near a paragraph boundary can dirty two paragraphs.
           (dolist (bounds paras)

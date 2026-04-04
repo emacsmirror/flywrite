@@ -4073,4 +4073,91 @@ so its diagnostic must survive without a re-check."
       (flywrite-mode -1))))
 
 
+;;;; ---- E2E: three paragraphs merge into one ----
+
+
+(ert-deftest flywrite-test-e2e-three-paras-merge-into-one ()
+  "Deleting middle paragraph plus separators merges paras 1 and 3.
+Three paragraphs: para 1 has \"Him\", para 2 clean, para 3 has \"Him\".
+Delete para 2 and both surrounding blank-line separators so paras 1
+and 3 become one paragraph.  All old diagnostics should clear and the
+merged paragraph should be queued and re-checked."
+  (let* ((flywrite-api-url "https://api.openai.com/v1/chat/completions")
+         (flywrite-api-key "sk-fake-test-key")
+         (flywrite-idle-delay 0.1)
+         (flywrite-eager nil)
+         (mock-response-json nil)
+         (api-call-count 0))
+    (with-temp-buffer
+      (text-mode)
+
+      (insert (concat "Him went to the store.\n\n"
+                      "The weather is nice today.\n\n"
+                      "Him ran down the street."))
+
+      (cl-letf (((symbol-function 'url-retrieve)
+                 (lambda (_url callback &optional _cbargs _silent _inhibit)
+                   (cl-incf api-call-count)
+                   (let ((resp-buf (flywrite-test--make-response-buffer
+                                    mock-response-json)))
+                     (with-current-buffer resp-buf
+                       (goto-char (point-min))
+                       (funcall callback nil))
+                     resp-buf))))
+
+        (flywrite-mode 1)
+
+        ;; Mock response: flag "Him"
+        (let ((inner (json-encode
+                      '((suggestions
+                         . [((quote . "Him")
+                             (reason
+                              . "Use \"He\" (subject pronoun)"))])))))
+          (setq mock-response-json
+                (json-encode
+                 `((choices
+                    . [((message
+                         . ((content . ,inner))))])))))
+
+        ;; --- Step 1: Check all paragraphs ---
+        (flywrite--after-change 1 (point-max) 0)
+        (flywrite--idle-timer-fn (current-buffer))
+
+        ;; Two diagnostics, both "Him"
+        (should (= (length (flymake-diagnostics)) 2))
+        (dolist (diag (flymake-diagnostics))
+          (should (string= "Him"
+                           (buffer-substring-no-properties
+                            (flymake-diagnostic-beg diag)
+                            (flymake-diagnostic-end diag)))))
+
+        (let ((calls-after-initial api-call-count))
+
+          ;; --- Step 2: Delete middle para AND both separators ---
+          ;; "Him went to the store.\n\nThe weather is nice today.\n\nHim ran"
+          ;; becomes "Him went to the store.Him ran down the street."
+          (goto-char 1)
+          (search-forward "store.")
+          (let ((del-start (point)))
+            (search-forward "\n\nHim ran")
+            (goto-char (match-beginning 0))
+            (forward-char 2)              ; skip past the second \n\n
+            (delete-region del-start (point)))
+
+          ;; --- Step 3: Re-check ---
+          (flywrite--idle-timer-fn (current-buffer))
+
+          ;; --- Step 4: Merged paragraph triggered a new API call ---
+          (should (> api-call-count calls-after-initial))
+
+          ;; --- Step 5: One diagnostic on merged paragraph ---
+          (should (= (length (flymake-diagnostics)) 1))
+          (let ((diag (car (flymake-diagnostics))))
+            (should (string= "Him"
+                             (flywrite-test--diag-text-at-overlay
+                              diag))))))
+
+      (flywrite-mode -1))))
+
+
 ;;; test-flywrite.el ends here

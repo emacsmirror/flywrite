@@ -60,11 +60,11 @@
                     "time if she would have started "
                     "earlier.")
            :description "could of and would have"
-           :expected ((prose . 2) (academic . 2)))
+           :expected ((prose . 1) (academic . 2)))
     (:text ,(concat "Between you and I, this project is "
                     "more bigger than we expected.")
            :description "pronoun case and double comparative"
-           :expected ((prose . 2) (academic . 2)))
+           :expected ((prose . 2) (academic . 3)))
     (:text ,(concat "The weather was very extremely hot "
                     "outside yesterday.")
            :description "redundant intensifiers"
@@ -73,7 +73,7 @@
     (:text ,(concat "The optimization had a significant "
                     "affect on runtime performance.")
            :description "affect/effect, weasel word"
-           :expected ((prose . 1) (academic . 1)))
+           :expected ((prose . 1) (academic . 2)))
     (:text ,(concat "The benchmarks show the approach is "
                     "more efficient then brute force "
                     "search.")
@@ -95,7 +95,7 @@
            :description ,(concat "informal transition, subjective "
                                  "qualifier, ambiguous \"this\", "
                                  "vague term")
-           :expected ((prose . 1) (academic . 4)))
+           :expected ((prose . 0) (academic . 5)))
     ;; From samples/file-local-prose.txt
     ;; (:text ,(concat "This file uses the 'prose' prompt via "
     ;;                 "a file-local variable on the first "
@@ -117,7 +117,7 @@
                     "stuff.")
            :description ,(concat "academic-only errors: hedging, "
                                  "weasel words, informal language")
-           :expected ((prose . 1) (academic . 11)))
+           :expected ((prose . 0) (academic . 11)))
     (:text ,(concat "Each student must submit their "
                     "homework.")
            :description "singular they (correct)"

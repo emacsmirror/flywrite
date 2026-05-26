@@ -174,7 +174,7 @@ $ chmod 600 ~/.flywrite-api-key
    ```elisp
    (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
    (setq flywrite-api-key-file "~/.flywrite-api-key")
-   (setq flywrite-api-model "claude-sonnet-4-20250514")  ; default
+   (setq flywrite-api-model "claude-sonnet-4-6")  ; default
    ```
 
 **OpenAI**
@@ -185,7 +185,7 @@ $ chmod 600 ~/.flywrite-api-key
    ```elisp
    (setq flywrite-api-url "https://api.openai.com/v1/chat/completions")
    (setq flywrite-api-key-file "~/.flywrite-api-key")
-   (setq flywrite-api-model "gpt-4o")  ; default
+   (setq flywrite-api-model "gpt-5.4-mini")  ; default
    ```
 
 **Google Gemini**
@@ -196,7 +196,7 @@ $ chmod 600 ~/.flywrite-api-key
    ```elisp
    (setq flywrite-api-url "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
    (setq flywrite-api-key-file "~/.flywrite-api-key")
-   (setq flywrite-api-model "gemini-2.5-flash")  ; default
+   (setq flywrite-api-model "gemini-3.1-flash-lite")  ; default
    ```
 
 **Ollama**
@@ -224,7 +224,7 @@ Note: Smaller models may not consistently return valid JSON in the expected form
 (setq flywrite-api-url "https://api.anthropic.com/v1/messages")
 (setq flywrite-api-key-file "~/.flywrite-api-key")
 (setq flywrite-api-headers '(("Custom-Header" . "value")))
-(setq flywrite-api-model "claude-sonnet-4-20250514")
+(setq flywrite-api-model "claude-sonnet-4-6")
 ```
 
 `flywrite-api-headers` adds custom HTTP headers to every request, merged with the default Content-Type and authorization headers.

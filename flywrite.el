@@ -353,13 +353,13 @@ configure it.  See the README for details."
   :group 'flywrite)
 
 
-(defconst flywrite--default-model-anthropic "claude-sonnet-4-20250514"
+(defconst flywrite--default-model-anthropic "claude-sonnet-4-6"
   "Default model for Anthropic API.")
 
-(defconst flywrite--default-model-openai "gpt-4o"
+(defconst flywrite--default-model-openai "gpt-5.4-mini"
   "Default model for OpenAI and OpenAI-compatible APIs.")
 
-(defconst flywrite--default-model-gemini "gemini-2.5-flash"
+(defconst flywrite--default-model-gemini "gemini-3.1-flash-lite"
   "Default model for Google Gemini API.")
 
 
